@@ -12,7 +12,12 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getContact, listNotes } from "@/lib/contacts";
-import { formatDateTime, parseContactId, pluralize } from "@/lib/format";
+import {
+  formatDateTime,
+  initials,
+  parseContactId,
+  pluralize,
+} from "@/lib/format";
 
 export async function generateMetadata({
   params,
@@ -45,14 +50,22 @@ async function ContactDetails({ rawId }: { rawId: string }) {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight break-words">
-              {contact.name}
-            </h1>
-            {contact.about && (
-              <p className="mt-1 text-muted-foreground">{contact.about}</p>
-            )}
+        <CardHeader className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <div
+              aria-hidden
+              className="flex size-14 shrink-0 items-center justify-center rounded-full bg-line-soft font-display text-initials font-medium"
+            >
+              {initials(contact.name)}
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-display text-title font-medium break-words sm:text-title-lg">
+                {contact.name}
+              </h1>
+              {contact.about && (
+                <p className="mt-1 text-ink-soft">{contact.about}</p>
+              )}
+            </div>
           </div>
           <Link
             href={`/contacts/${contact.id}/edit`}
@@ -64,7 +77,7 @@ async function ContactDetails({ rawId }: { rawId: string }) {
         </CardHeader>
         <Separator />
         <CardContent>
-          <dl className="grid gap-4 sm:grid-cols-[10rem_1fr] sm:gap-x-6 sm:gap-y-3">
+          <dl className="grid gap-5 sm:grid-cols-[11rem_1fr] sm:gap-x-6 sm:gap-y-4">
             <DetailRow label="Откуда знакомы">
               {contact.howWeMet && (
                 <span className="whitespace-pre-wrap">{contact.howWeMet}</span>
@@ -96,12 +109,15 @@ async function ContactDetails({ rawId }: { rawId: string }) {
         </CardContent>
       </Card>
 
-      <section className="flex flex-col gap-4" aria-labelledby="notes-title">
-        <div className="mt-2 flex items-baseline justify-between gap-4">
-          <h2 id="notes-title" className="text-lg font-semibold">
+      <section className="flex flex-col gap-5" aria-labelledby="notes-title">
+        <div className="mt-6 flex items-baseline justify-between gap-4">
+          <h2
+            id="notes-title"
+            className="font-display text-section font-medium sm:text-section-lg"
+          >
             Заметки
           </h2>
-          <span className="text-sm text-muted-foreground">
+          <span className="eyebrow">
             {pluralize(notes.length, ["заметка", "заметки", "заметок"])}
           </span>
         </div>
@@ -109,21 +125,19 @@ async function ContactDetails({ rawId }: { rawId: string }) {
         <NoteForm action={addNoteAction.bind(null, contact.id)} />
 
         {notes.length > 0 ? (
-          <ol className="flex flex-col gap-3">
+          // Lines between notes, like the lists on the landing
+          <ol className="mt-3 border-b">
             {notes.map((note) => (
-              <li key={note.id} className="rounded-xl border bg-background px-4 py-3">
-                <time
-                  dateTime={note.createdAt.toISOString()}
-                  className="text-xs text-muted-foreground"
-                >
+              <li key={note.id} className="border-t py-5">
+                <time dateTime={note.createdAt.toISOString()} className="eyebrow">
                   {formatDateTime(note.createdAt)}
                 </time>
-                <p className="mt-1 whitespace-pre-wrap break-words">{note.body}</p>
+                <p className="mt-2 whitespace-pre-wrap break-words">{note.body}</p>
               </li>
             ))}
           </ol>
         ) : (
-          <p className="rounded-xl border border-dashed bg-background px-4 py-6 text-center text-sm text-muted-foreground">
+          <p className="mt-3 rounded-lg border px-4 py-6 text-center text-ink-soft">
             Заметок пока нет. Запишите, о чём говорили и о чём договорились.
           </p>
         )}
@@ -141,7 +155,9 @@ function DetailRow({
 }) {
   return (
     <div className="contents">
-      <dt className="text-sm text-muted-foreground sm:pt-0.5">{label}</dt>
+      <dt className="text-xs font-medium tracking-widest text-muted-foreground uppercase sm:pt-1">
+        {label}
+      </dt>
       <dd className="-mt-3 sm:mt-0">
         {children || <span className="text-muted-foreground/70">Не указано</span>}
       </dd>
@@ -152,14 +168,14 @@ function DetailRow({
 function ContactSkeleton() {
   return (
     <div className="flex flex-col gap-4" aria-busy="true">
-      <div className="flex flex-col gap-3 rounded-xl border bg-background p-4">
-        <Skeleton className="h-8 w-56" />
+      <div className="flex flex-col gap-3 rounded-lg border p-5 sm:p-7">
+        <Skeleton className="h-10 w-56" />
         <Skeleton className="h-4 w-40" />
         <Skeleton className="mt-4 h-4 w-full" />
         <Skeleton className="h-4 w-2/3" />
         <Skeleton className="h-4 w-1/2" />
       </div>
-      <Skeleton className="mt-2 h-6 w-28" />
+      <Skeleton className="mt-6 h-8 w-32" />
       <Skeleton className="h-20 w-full" />
     </div>
   );

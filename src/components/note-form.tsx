@@ -35,13 +35,12 @@ export function NoteForm({
               event.currentTarget.form?.requestSubmit();
             }
           }}
-          className="bg-background"
         />
         {state.error && (
           <FieldError id="note-body-error">{state.error}</FieldError>
         )}
       </Field>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <Button type="submit" disabled={pending}>
           {pending ? "Сохраняю…" : "Добавить заметку"}
         </Button>

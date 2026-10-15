@@ -136,7 +136,7 @@ export function ContactForm({
         </p>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-3">
         <Button type="submit" size="lg" disabled={pending}>
           {pending ? "Сохраняю…" : submitLabel}
         </Button>

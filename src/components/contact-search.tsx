@@ -53,7 +53,7 @@ export function ContactSearch({ query }: { query: string }) {
       }}
     >
       <Search
-        className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground"
         aria-hidden
       />
       <Input
@@ -67,11 +67,11 @@ export function ContactSearch({ query }: { query: string }) {
         placeholder="Найти по имени"
         aria-label="Найти контакт по имени"
         autoComplete="off"
-        className="h-10 bg-background pr-9 pl-9"
+        className="h-12 pr-11 pl-11"
       />
       {isPending && (
         <LoaderCircle
-          className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
+          className="absolute top-1/2 right-4 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
           aria-label="Ищу…"
         />
       )}

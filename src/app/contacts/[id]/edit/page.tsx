@@ -39,7 +39,7 @@ async function EditContact({ rawId }: { rawId: string }) {
       <Card>
         <CardHeader>
           <CardTitle>
-            <h1 className="text-xl font-semibold">Изменить контакт</h1>
+            <h1 className="font-display text-title font-medium sm:text-title-lg">Изменить контакт</h1>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -65,10 +65,10 @@ function EditSkeleton() {
   return (
     <div className="flex flex-col gap-4" aria-busy="true">
       <Skeleton className="h-5 w-28" />
-      <div className="flex flex-col gap-4 rounded-xl border bg-background p-4">
-        <Skeleton className="h-6 w-48" />
+      <div className="flex flex-col gap-4 rounded-lg border p-5 sm:p-7">
+        <Skeleton className="h-10 w-56" />
         {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-9 w-full" />
+          <Skeleton key={index} className="h-11 w-full" />
         ))}
       </div>
     </div>

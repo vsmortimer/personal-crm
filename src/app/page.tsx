@@ -19,10 +19,16 @@ const CONTACT_WORDS = ["контакт", "контакта", "контактов
 
 export default function ContactsPage({ searchParams }: PageProps<"/">) {
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Контакты</h1>
-        <Link href="/contacts/new" className={buttonVariants({ size: "lg" })}>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-6">
+        <h1 className="font-display text-title font-medium sm:text-title-lg">
+          Контакты
+        </h1>
+        {/* Full width on phones, like the landing's button */}
+        <Link
+          href="/contacts/new"
+          className={buttonVariants({ size: "lg", className: "w-full sm:w-auto" })}
+        >
           <Plus aria-hidden />
           Добавить контакт
         </Link>
@@ -56,12 +62,12 @@ async function ContactsSection({
       {added && (
         <div
           role="status"
-          className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100"
+          className="rounded-lg border border-success-line bg-success px-4 py-3 text-sm text-success-ink"
         >
           Контакт «{added.name}» добавлен в список.{" "}
           <Link
             href={`/contacts/${added.id}`}
-            className="font-medium underline underline-offset-4"
+            className="font-semibold underline underline-offset-4"
           >
             Открыть карточку
           </Link>
@@ -69,7 +75,7 @@ async function ContactsSection({
         </div>
       )}
 
-      <p className="text-sm text-muted-foreground" aria-live="polite">
+      <p className="eyebrow" aria-live="polite">
         {query
           ? `Найдено: ${contacts.length.toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")}`
           : `Всего ${pluralize(total, CONTACT_WORDS)}`}
@@ -92,18 +98,22 @@ function EmptyState({
   hasContacts: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-dashed bg-background px-6 py-12 text-center">
+    <div className="rounded-lg border px-6 py-12 text-center">
       {hasContacts ? (
         <>
-          <p className="font-medium">Никого не нашлось по запросу «{query}»</p>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="font-display text-section font-medium break-words">
+            Никого не нашлось по запросу «{query}»
+          </p>
+          <p className="mt-3 text-ink-soft">
             Проверьте написание или поищите по части имени.
           </p>
         </>
       ) : (
         <>
-          <p className="font-medium">Контактов пока нет</p>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="font-display text-section font-medium">
+            Контактов пока нет
+          </p>
+          <p className="mt-3 text-ink-soft">
             Добавьте первого человека, чтобы не потерять с ним связь.
           </p>
         </>
@@ -114,10 +124,10 @@ function EmptyState({
 
 function ContactsSkeleton() {
   return (
-    <div className="flex flex-col gap-5" aria-busy="true">
-      <Skeleton className="h-10 w-full" />
+    <div className="flex flex-col gap-6" aria-busy="true">
+      <Skeleton className="h-12 w-full" />
       <Skeleton className="h-4 w-32" />
-      <div className="flex flex-col gap-2 rounded-xl border bg-background p-4">
+      <div className="flex flex-col gap-2 rounded-lg border p-4">
         {Array.from({ length: 8 }, (_, index) => (
           <Skeleton key={index} className="h-10 w-full" />
         ))}

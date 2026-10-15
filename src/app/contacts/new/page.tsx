@@ -17,7 +17,7 @@ export default function NewContactPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            <h1 className="text-xl font-semibold">Новый контакт</h1>
+            <h1 className="font-display text-title font-medium sm:text-title-lg">Новый контакт</h1>
           </CardTitle>
         </CardHeader>
         <CardContent>

@@ -1,0 +1,79 @@
+/*
+ * Design tokens: the only place for colors, fonts, type sizes and radii.
+ * The palette and fonts are the landing's (personal-crm-landing/src/styles/tokens.css),
+ * so the app and the landing look like one product.
+ */
+
+:root {
+  /* Landing palette, same names and values */
+  --paper: #F3EEE5;      /* page background */
+  --sand: #EAE2D4;       /* muted surfaces: letter headers, hovers, skeletons */
+  --ink: #2E2219;        /* main text, primary button */
+  --ink-soft: #5A4A3C;   /* secondary text */
+  --ink-mute: #6B5A4A;   /* small captions and labels */
+  --ink-hover: #1F160F;  /* primary button hover */
+  --brand: #8A5A3B;      /* the landing's `accent`: display accents, focus */
+  --line: #D9CFC0;       /* lines and borders */
+  --line-soft: #E6DCCB;  /* initials circle */
+
+  /* App-only colors the landing has no use for; text on them passes WCAG AA */
+  --line-strong: #98866E;  /* input borders, 3:1 on paper */
+  --error: #A13D2D;        /* 5.6:1 on paper */
+  --success: #E2E4CC;      /* "contact added" background */
+  --success-ink: #3E4A26;  /* text on success, 7.3:1 */
+  --success-line: #C4C8A2;
+
+  /* shadcn/ui semantic tokens, mapped onto the palette */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--paper);
+  --primary-hover: var(--ink-hover);
+  --secondary: var(--sand);
+  --secondary-foreground: var(--ink);
+  --muted: var(--sand);
+  --muted-foreground: var(--ink-mute);
+  --accent: var(--sand);
+  --accent-foreground: var(--ink);
+  --destructive: var(--error);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--brand);
+  /* The landing's button corner: 2px */
+  --radius: 0.125rem;
+}
+
+@theme {
+  /* Type scale for app pages: `name` is mobile, `name-lg` is from 640px (sm:) */
+  --text-logo: 22px;
+  --text-logo--line-height: normal;
+  --text-logo--letter-spacing: 0.01em;
+  --text-logo-lg: 26px;
+  --text-logo-lg--line-height: normal;
+  --text-logo-lg--letter-spacing: 0.01em;
+
+  --text-title: 40px;
+  --text-title--line-height: 1;
+  --text-title-lg: 52px;
+  --text-title-lg--line-height: 1;
+  --text-title-lg--letter-spacing: -0.01em;
+
+  --text-section: 28px;
+  --text-section--line-height: 1.1;
+  --text-section-lg: 34px;
+  --text-section-lg--line-height: 1.1;
+
+  --text-letter: 22px;
+  --text-letter--line-height: 1;
+
+  --text-initials: 24px;
+  --text-initials--line-height: normal;
+
+  --text-eyebrow: 12px;
+  --text-eyebrow--line-height: normal;
+  --text-eyebrow--letter-spacing: 0.12em;
+}

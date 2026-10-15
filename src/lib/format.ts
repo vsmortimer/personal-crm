@@ -22,6 +22,17 @@ export function formatDateTime(date: Date): string {
   return dateTimeFormat.format(date);
 }
 
+// initials("Андрей Ковалёв") -> "АК"; a single word gives one letter
+export function initials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    // Array.from keeps an emoji or other two-unit character whole
+    .map((word) => (Array.from(word)[0] ?? "").toLocaleUpperCase("ru-RU"))
+    .join("");
+}
+
 // Contact ids in URLs are positive 32-bit integers
 export function parseContactId(raw: string): number | null {
   if (!/^\d{1,10}$/.test(raw)) return null;
