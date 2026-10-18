@@ -39,7 +39,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           # The server runs its deploy script for this key, whatever command is sent
-          docker save "personal-crm:$GITHUB_SHA" | gzip | ssh -i ~/.ssh/deploy_key \
+          docker save "personal-crm:$GITHUB_SHA" | gzip | ssh -T -i ~/.ssh/deploy_key \
             -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
             "crmdeploy@$DEPLOY_HOST"
 
