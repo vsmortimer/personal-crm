@@ -1,0 +1,50 @@
+# Every push to main: build the app image and deploy it to the server.
+# The server side is deploy/crm-app-deploy.sh; deploy/setup-server.sh prepares the server once.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Deploys run one after another, a newer push never cancels a deploy halfway
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  APP_URL: https://app.example-crm.site
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the image
+        run: docker build --build-arg APP_COMMIT="$GITHUB_SHA" --tag "personal-crm:$GITHUB_SHA" .
+
+      - name: Send the image to the server and deploy it
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # The server runs its deploy script for this key, whatever command is sent
+          docker save "personal-crm:$GITHUB_SHA" | gzip | ssh -i ~/.ssh/deploy_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
+            "crmdeploy@$DEPLOY_HOST"
+
+      - name: Check the public address
+        run: |
+          body=$(curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$APP_URL/health")
+          echo "$APP_URL/health -> $body"
+          test "$(jq -r .commit <<<"$body")" = "$GITHUB_SHA"

@@ -1,0 +1,13 @@
+# Secrets never go into the image
+.env*
+
+.git
+.github
+.next
+node_modules
+db-scripts
+*.tsbuildinfo
+.DS_Store
+.claude
+deploy
+specs

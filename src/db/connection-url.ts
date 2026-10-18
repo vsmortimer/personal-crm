@@ -13,11 +13,13 @@ export function getDatabaseUrl(): string {
     );
   }
 
-  // compose.yaml publishes the port on 127.0.0.1 only
+  // compose.yaml publishes the port on 127.0.0.1 only;
+  // on the server the app container reaches the database by its service name
+  const host = process.env.POSTGRES_HOST || "127.0.0.1";
   const port = process.env.POSTGRES_PORT || "5432";
   const user = encodeURIComponent(POSTGRES_USER);
   const password = encodeURIComponent(POSTGRES_PASSWORD);
   const database = encodeURIComponent(POSTGRES_DB);
 
-  return `postgres://${user}:${password}@127.0.0.1:${port}/${database}`;
+  return `postgres://${user}:${password}@${host}:${port}/${database}`;
 }

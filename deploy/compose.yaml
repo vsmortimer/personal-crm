@@ -1,0 +1,50 @@
+# The app and its own Postgres on the server. setup-server.sh installs this file
+# to /srv/crm-app; crm-app-deploy.sh runs it with APP_TAG set to the commit to run.
+# Database settings come from /srv/crm-app/.env (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB).
+name: crm-app
+
+x-database-settings: &database-settings
+  POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+  POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+
+services:
+  db:
+    # Pinned by digest: the deploy may load images, but cannot replace this one
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    restart: unless-stopped
+    environment: *database-settings
+    # No published port: only the app reaches the database, over the compose network
+    volumes:
+      # Postgres 18+ images keep data under /var/lib/postgresql/<major>/docker
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: personal-crm:${APP_TAG:?APP_TAG is set by crm-app-deploy}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *database-settings
+      POSTGRES_HOST: db
+    ports:
+      # nginx proxies app.example-crm.site here
+      - "127.0.0.1:3000:3000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      start_interval: 2s
+      retries: 3
+
+volumes:
+  db-data:
