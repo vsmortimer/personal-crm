@@ -1,16 +1,25 @@
-# The app and its own Postgres on the server. setup-server.sh installs this file
-# to /srv/crm-app; crm-app-deploy.sh runs it with APP_TAG set to the commit to run.
-# Database settings come from /srv/crm-app/.env (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB).
-name: crm-app
+# The app and its own Postgres on the server, compose project "prod". Every deploy copies
+# deploy/ to /srv/prod/deploy; deploy.sh runs this file with APP_TAG set to the commit to run.
+# Database settings come from /srv/prod/.env (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB).
+# The scripts pass -p prod too; the name here keeps a bare `docker compose` from starting
+# a second stack with an empty database.
+name: prod
 
 x-database-settings: &database-settings
   POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
   POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
 
+# Logs of each container take at most 3 files of 10 MB
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 services:
   db:
-    # Pinned by digest: the deploy may load images, but cannot replace this one
+    # Pinned by digest: every deploy runs the same Postgres build
     image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     restart: unless-stopped
     environment: *database-settings
@@ -18,6 +27,7 @@ services:
     volumes:
       # Postgres 18+ images keep data under /var/lib/postgresql/<major>/docker
       - db-data:/var/lib/postgresql
+    logging: *logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
@@ -25,7 +35,9 @@ services:
       retries: 10
 
   app:
-    image: personal-crm:${APP_TAG:?APP_TAG is set by crm-app-deploy}
+    # GitHub Actions pushes the image to GHCR and deploy.sh pulls it; compose never pulls it
+    image: ghcr.io/vsmortimer/personal-crm:${APP_TAG:?APP_TAG is set by deploy.sh}
+    pull_policy: never
     restart: unless-stopped
     depends_on:
       db:
@@ -38,6 +50,7 @@ services:
       - "127.0.0.1:3000:3000"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    logging: *logging
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
       interval: 10s
