@@ -8,12 +8,13 @@ import { cn } from "@/lib/utils";
 
 type LetterGroup = { letter: string; contacts: ContactListItem[] };
 
-// Contacts arrive sorted by name; split them into runs by first letter.
+// Contacts arrive sorted by surname, and the list name starts with it;
+// split them into runs by its first letter.
 // "Ё" goes with "Е" because the collation sorts them together.
 function groupByLetter(contacts: ContactListItem[]): LetterGroup[] {
   const groups: LetterGroup[] = [];
   for (const contact of contacts) {
-    const first = contact.name.trim().charAt(0).toLocaleUpperCase("ru-RU");
+    const first = contact.listName.trim().charAt(0).toLocaleUpperCase("ru-RU");
     const letter = first === "Ё" ? "Е" : /\p{L}/u.test(first) ? first : "#";
     const last = groups.at(-1);
     if (last?.letter === letter) {
@@ -50,7 +51,7 @@ export function ContactList({
                   )}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{contact.name}</p>
+                    <p className="truncate font-semibold">{contact.listName}</p>
                     {contact.about && (
                       <p className="truncate text-sm text-muted-foreground">
                         {contact.about}

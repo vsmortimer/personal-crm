@@ -1,6 +1,6 @@
 import "server-only";
 
-import { count, desc, eq, sql } from "drizzle-orm";
+import { count, desc, eq, or, sql } from "drizzle-orm";
 import { connection } from "next/server";
 import { cache } from "react";
 
@@ -24,13 +24,25 @@ function escapeLikePattern(text: string): string {
   return text.replace(/[\\%_]/g, (char) => `\\${char}`);
 }
 
+// The surname is the last word of the name: "Анна Смирнова" -> "Смирнова";
+// a one-word name ("Мама") is its own surname
+const surname = sql`regexp_replace(${contacts.name}, '^.*[[:space:]]', '')`;
+
+// The list shows the surname first: "Иван Иванович Петров" -> "Петров Иван Иванович"
+const listName = sql<string>`regexp_replace(${contacts.name}, '^(.*[^[:space:]])[[:space:]]+([^[:space:]]+)$', '\\2 \\1')`;
+
 export async function listContacts(query: string) {
   // Contacts must be read fresh on every request, never prerendered
   await connection();
 
+  // Finds "Анна Смирнова" both as written and as shown in the list
   const normalized = normalizeForSearch(query.trim());
+  const pattern = `%${escapeLikePattern(normalized)}%`;
   const nameFilter = normalized
-    ? sql`replace(lower(${contacts.name}), 'ё', 'е') like ${`%${escapeLikePattern(normalized)}%`}`
+    ? or(
+        sql`replace(lower(${contacts.name}), 'ё', 'е') like ${pattern}`,
+        sql`replace(lower(${listName}), 'ё', 'е') like ${pattern}`,
+      )
     : undefined;
 
   const [rows, [{ total }]] = await Promise.all([
@@ -38,13 +50,19 @@ export async function listContacts(query: string) {
       .select({
         id: contacts.id,
         name: contacts.name,
+        listName: listName.as("list_name"),
         about: contacts.about,
         phone: contacts.phone,
         email: contacts.email,
       })
       .from(contacts)
       .where(nameFilter)
-      .orderBy(sql`${contacts.name} collate "ru-x-icu"`, contacts.id),
+      // By surname, then by the rest of the name within one surname
+      .orderBy(
+        sql`${surname} collate "ru-x-icu"`,
+        sql`${listName} collate "ru-x-icu"`,
+        contacts.id,
+      ),
     db.select({ total: count() }).from(contacts),
   ]);
 
