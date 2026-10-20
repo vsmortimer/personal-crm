@@ -1,11 +1,12 @@
 import "server-only";
 
-import { count, desc, eq, or, sql } from "drizzle-orm";
+import { count, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { connection } from "next/server";
 import { cache } from "react";
 
 import { db } from "@/db";
 import { contacts, notes } from "@/db/schema";
+import type { ContactFrequency } from "@/lib/contact-frequency";
 
 export type ContactInput = {
   name: string;
@@ -13,6 +14,7 @@ export type ContactInput = {
   howWeMet: string | null;
   phone: string | null;
   email: string | null;
+  contactFrequency: ContactFrequency | null;
 };
 
 // Case-insensitive and treats "ё" as "е", so "семен" finds "Семён"
@@ -72,6 +74,58 @@ export async function listContacts(query: string) {
 export type ContactListItem = Awaited<
   ReturnType<typeof listContacts>
 >["contacts"][number];
+
+// Months are calendar ones: Jan 31 + 1 month is the last day of February
+const FREQUENCY_INTERVALS: Record<ContactFrequency, string> = {
+  week: "7 days",
+  month: "1 month",
+  quarter: "3 months",
+  year: "1 year",
+};
+
+const frequencyInterval = sql`case ${contacts.contactFrequency} ${sql.raw(
+  Object.entries(FREQUENCY_INTERVALS)
+    .map(([frequency, interval]) => `when '${frequency}' then interval '${interval}'`)
+    .join(" "),
+)} end`;
+
+// The last catch-up is the latest note, or the moment the contact was added
+const lastContactAt = sql`coalesce(max(${notes.createdAt}), ${contacts.createdAt})`;
+
+// The moment the contact's period runs out
+const dueAt = sql`${lastContactAt} + ${frequencyInterval}`;
+
+// Contacts whose period has run out since the last catch-up
+export async function listDueContacts() {
+  await connection();
+
+  return db
+    .select({
+      id: contacts.id,
+      listName: listName.as("list_name"),
+      contactFrequency: sql<ContactFrequency>`${contacts.contactFrequency}`.as(
+        "contact_frequency",
+      ),
+      // Whole days, against the same now() as the filter below
+      daysSinceContact: sql<number>`floor(extract(epoch from now() - ${lastContactAt}) / 86400)::int`.as(
+        "days_since_contact",
+      ),
+    })
+    .from(contacts)
+    .leftJoin(notes, eq(notes.contactId, contacts.id))
+    .where(isNotNull(contacts.contactFrequency))
+    .groupBy(contacts.id)
+    .having(sql`${dueAt} < now()`)
+    // The longest overdue first, then in the same order as the contact list
+    .orderBy(
+      dueAt,
+      sql`${surname} collate "ru-x-icu"`,
+      sql`${listName} collate "ru-x-icu"`,
+      contacts.id,
+    );
+}
+
+export type DueContact = Awaited<ReturnType<typeof listDueContacts>>[number];
 
 // cache() dedupes the query between the page and its metadata within one request
 export const getContact = cache(async (id: number) => {

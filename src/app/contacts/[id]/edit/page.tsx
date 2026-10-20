@@ -56,6 +56,7 @@ async function EditContact({ rawId }: { rawId: string }) {
               howWeMet: contact.howWeMet ?? "",
               phone: contact.phone ?? "",
               email: contact.email ?? "",
+              contactFrequency: contact.contactFrequency ?? "",
             }}
             submitLabel="Сохранить"
             cancelHref={`/contacts/${contact.id}`}

@@ -5,6 +5,7 @@ import { count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
+import { CONTACT_FREQUENCIES } from "../lib/contact-frequency";
 import { getDatabaseUrl } from "./connection-url";
 import { contacts, notes } from "./schema";
 
@@ -31,6 +32,14 @@ const randomInt = (min: number, max: number) =>
   min + Math.floor(random() * (max - min + 1));
 const pick = <T>(items: readonly T[]): T => items[randomInt(0, items.length - 1)];
 const chance = (probability: number) => random() < probability;
+
+// A separate generator, so the contact frequencies leave the rest
+// of the data set exactly as it was before they were added
+const frequencyRandom = createRandom(20261020);
+function pickFrequency() {
+  if (frequencyRandom() >= 1 / 3) return null;
+  return CONTACT_FREQUENCIES[Math.floor(frequencyRandom() * CONTACT_FREQUENCIES.length)];
+}
 
 const MALE_FIRST_NAMES = [
   "Александр", "Алексей", "Андрей", "Антон", "Артём", "Борис", "Вадим",
@@ -321,6 +330,8 @@ function generateContacts(now: number) {
         howWeMet: chance(0.85) ? inflect(pick(HOW_WE_MET), isFemale) : null,
         phone: chance(0.9) ? makePhone(usedPhones) : null,
         email: chance(0.75) ? makeEmail(firstName, surname, usedEmails) : null,
+        // About a third of the contacts, so the home page has people to catch up with
+        contactFrequency: pickFrequency(),
         createdAt,
         updatedAt,
       },
