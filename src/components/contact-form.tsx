@@ -12,7 +12,15 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  CONTACT_FREQUENCIES,
+  CONTACT_FREQUENCY_LABELS,
+} from "@/lib/contact-frequency";
 import {
   CONTACT_FIELDS,
   type ContactField,
@@ -123,6 +131,32 @@ export function ContactForm({
               placeholder="name@mail.ru"
             />
             {error("email")}
+          </Field>
+
+          {/* Under the phone on wide screens, so it takes half a row */}
+          <Field data-invalid={!!state.errors.contactFrequency}>
+            <FieldLabel htmlFor="contactFrequency">Как часто общаться</FieldLabel>
+            <NativeSelect
+              {...fieldProps("contactFrequency")}
+              aria-describedby={
+                state.errors.contactFrequency
+                  ? "contactFrequency-error contactFrequency-hint"
+                  : "contactFrequency-hint"
+              }
+              className="w-full"
+            >
+              <NativeSelectOption value="">Не задано</NativeSelectOption>
+              {CONTACT_FREQUENCIES.map((frequency) => (
+                <NativeSelectOption key={frequency} value={frequency}>
+                  {CONTACT_FREQUENCY_LABELS[frequency]}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <FieldDescription id="contactFrequency-hint">
+              Если не общаться дольше, контакт появится на главной в «Пора
+              связаться»
+            </FieldDescription>
+            {error("contactFrequency")}
           </Field>
         </div>
         <FieldDescription>

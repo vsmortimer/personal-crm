@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { CONTACT_FREQUENCIES } from "@/lib/contact-frequency";
+
 const tooLong = (max: number) => `Слишком длинно: не больше ${max} символов`;
 
 const optionalText = (max: number) =>
@@ -31,6 +33,12 @@ export const contactSchema = z.object({
       "Проверьте адрес почты, например: name@mail.ru",
     )
     .transform((value) => value || null),
+  // "" means "not set"; a value off the list can only come from a forged request
+  contactFrequency: z
+    .enum(["", ...CONTACT_FREQUENCIES] as const, {
+      error: "Выберите вариант из списка",
+    })
+    .transform((value) => value || null),
 });
 
 export type ContactField = keyof z.input<typeof contactSchema>;
@@ -41,6 +49,7 @@ export const CONTACT_FIELDS = [
   "howWeMet",
   "phone",
   "email",
+  "contactFrequency",
 ] as const satisfies readonly ContactField[];
 
 export type ContactFormValues = Record<ContactField, string>;
@@ -59,6 +68,7 @@ export const emptyContactValues: ContactFormValues = {
   howWeMet: "",
   phone: "",
   email: "",
+  contactFrequency: "",
 };
 
 export const noteSchema = z.object({

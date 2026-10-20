@@ -5,10 +5,11 @@ import { Plus } from "lucide-react";
 
 import { ContactList } from "@/components/contact-list";
 import { ContactSearch } from "@/components/contact-search";
+import { DueContacts } from "@/components/due-contacts";
 import { ScrollIntoView } from "@/components/scroll-into-view";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listContacts } from "@/lib/contacts";
+import { listContacts, listDueContacts } from "@/lib/contacts";
 import { parseContactId, pluralize } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -53,13 +54,20 @@ async function ContactsSection({
   const deletedName =
     typeof params.deleted === "string" ? params.deleted.slice(0, 200) : "";
 
-  const { contacts, total } = await listContacts(query);
+  // Loaded together, so the block, the search and the list appear at once
+  // and the search field does not jump down when the block arrives
+  const [{ contacts, total }, dueContacts] = await Promise.all([
+    listContacts(query),
+    listDueContacts(),
+  ]);
   const added = addedId
     ? contacts.find((contact) => contact.id === addedId)
     : undefined;
 
   return (
     <>
+      {dueContacts.length > 0 && <DueContacts contacts={dueContacts} />}
+
       <ContactSearch query={query} />
 
       {added && (

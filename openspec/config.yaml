@@ -1,0 +1,46 @@
+schema: spec-driven
+
+context: |
+  Language: Russian
+  All artifacts must be written in Russian.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+  Code identifiers, file paths, table and field names stay in English;
+  user-facing UI texts are quoted in Russian, as they appear on screen.
+
+  Project: personal CRM - contacts of people the owner knows personally.
+  Product idea, main scenario, constraints and out-of-scope list:
+  specs/01-продуктовая-идея.md
+  Working rules (branches, data, deploy, secrets): CLAUDE.md
+
+  The owner is not a developer: write in plain words and describe behaviour
+  through what the user sees and does on screen.
+  Product decisions belong to the owner: anything not stated in the product
+  idea or the request goes to open questions, not into requirements.
+  A feature is done when the scenarios of its spec are met.
+
+  Tech stack: Next.js (App Router), TypeScript, React, Tailwind CSS, shadcn/ui;
+  colors, fonts and spacing only via design tokens (src/app/tokens.css).
+  PostgreSQL + Drizzle: schema in src/db/schema.ts, migrations in drizzle/.
+  Data access only on the server. Package manager: pnpm.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

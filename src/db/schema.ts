@@ -1,4 +1,15 @@
-import { index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
+
+import { CONTACT_FREQUENCIES } from "../lib/contact-frequency";
+
+export const contactFrequency = pgEnum("contact_frequency", CONTACT_FREQUENCIES);
 
 export const contacts = pgTable("contacts", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -8,6 +19,8 @@ export const contacts = pgTable("contacts", {
   howWeMet: text("how_we_met"),
   phone: text("phone"),
   email: text("email"),
+  // Empty means "not set": such a contact is never due for a catch-up
+  contactFrequency: contactFrequency("contact_frequency"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

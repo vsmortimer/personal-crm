@@ -11,6 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CONTACT_FREQUENCY_LABELS } from "@/lib/contact-frequency";
 import { getContact, listNotes } from "@/lib/contacts";
 import {
   formatDateTime,
@@ -104,6 +105,10 @@ async function ContactDetails({ rawId }: { rawId: string }) {
                   {contact.email}
                 </a>
               )}
+            </DetailRow>
+            <DetailRow label="Как часто общаться">
+              {contact.contactFrequency &&
+                CONTACT_FREQUENCY_LABELS[contact.contactFrequency]}
             </DetailRow>
           </dl>
         </CardContent>
