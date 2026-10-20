@@ -1,13 +1,20 @@
 const pluralRules = new Intl.PluralRules("ru-RU");
 
-// pluralize(5, ["контакт", "контакта", "контактов"]) -> "5 контактов"
-export function pluralize(
+type PluralForms = readonly [one: string, few: string, many: string];
+
+// pluralForm(21, ["удалится", "удалятся", "удалятся"]) -> "удалится"
+export function pluralForm(
   amount: number,
-  [one, few, many]: readonly [string, string, string],
+  [one, few, many]: PluralForms,
 ): string {
   const rule = pluralRules.select(amount);
-  const word = rule === "one" ? one : rule === "few" ? few : many;
-  return `${amount.toLocaleString("ru-RU")} ${word}`;
+  return rule === "one" ? one : rule === "few" ? few : many;
+}
+
+// pluralize(5, ["контакт", "контакта", "контактов"]) -> "5 контактов";
+// a non-breaking space keeps the number on the same line as the word
+export function pluralize(amount: number, forms: PluralForms): string {
+  return `${amount.toLocaleString("ru-RU")} ${pluralForm(amount, forms)}`;
 }
 
 const dateTimeFormat = new Intl.DateTimeFormat("ru-RU", {
