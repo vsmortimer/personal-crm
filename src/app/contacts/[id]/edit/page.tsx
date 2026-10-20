@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { updateContactAction } from "@/app/actions";
+import { deleteContactAction, updateContactAction } from "@/app/actions";
 import { BackLink } from "@/components/back-link";
 import { ContactForm } from "@/components/contact-form";
+import { DeleteContactButton } from "@/components/delete-contact-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getContact } from "@/lib/contacts";
+import { countNotes, getContact } from "@/lib/contacts";
 import { parseContactId } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -30,7 +32,10 @@ async function EditContact({ rawId }: { rawId: string }) {
   const id = parseContactId(rawId);
   if (!id) notFound();
 
-  const contact = await getContact(id);
+  const [contact, notesCount] = await Promise.all([
+    getContact(id),
+    countNotes(id),
+  ]);
   if (!contact) notFound();
 
   return (
@@ -55,6 +60,13 @@ async function EditContact({ rawId }: { rawId: string }) {
             submitLabel="Сохранить"
             cancelHref={`/contacts/${contact.id}`}
           />
+          {/* Kept apart from Save, so it is not pressed by accident */}
+          <Separator className="my-8" />
+          <DeleteContactButton
+            action={deleteContactAction.bind(null, contact.id)}
+            name={contact.name}
+            notesCount={notesCount}
+          />
         </CardContent>
       </Card>
     </div>
@@ -70,6 +82,7 @@ function EditSkeleton() {
         {Array.from({ length: 4 }, (_, index) => (
           <Skeleton key={index} className="h-11 w-full" />
         ))}
+        <Skeleton className="mt-8 h-10 w-44" />
       </div>
     </div>
   );

@@ -73,3 +73,7 @@ export type NoteFormState = {
   body: string;
   error?: string;
 };
+
+export type DeleteContactState = {
+  error?: string;
+};

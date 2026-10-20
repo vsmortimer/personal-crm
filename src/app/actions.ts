@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   addNote,
   createContact,
+  deleteContact,
   updateContact,
   type ContactInput,
 } from "@/lib/contacts";
@@ -17,10 +18,12 @@ import {
   type ContactField,
   type ContactFormState,
   type ContactFormValues,
+  type DeleteContactState,
   type NoteFormState,
 } from "@/lib/validation";
 
 const SAVE_FAILED = "Не удалось сохранить. Попробуйте ещё раз.";
+const DELETE_FAILED = "Не удалось удалить. Попробуйте ещё раз.";
 const CONTACT_MISSING = "Контакт не найден: возможно, его уже нет в базе.";
 
 function readContactValues(formData: FormData): ContactFormValues {
@@ -107,6 +110,25 @@ export async function updateContactAction(
 
   revalidatePath("/");
   redirect(`/contacts/${contactId}`);
+}
+
+// Used as a form action through useActionState; needs nothing from the form
+export async function deleteContactAction(
+  contactId: number,
+): Promise<DeleteContactState> {
+  let name: string | null;
+  try {
+    name = await deleteContact(contactId);
+  } catch (error) {
+    console.error("Failed to delete contact", error);
+    return { error: DELETE_FAILED };
+  }
+  if (name === null) {
+    return { error: CONTACT_MISSING };
+  }
+
+  revalidatePath("/");
+  redirect(`/?deleted=${encodeURIComponent(name)}`);
 }
 
 export async function addNoteAction(

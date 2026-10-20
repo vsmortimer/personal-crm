@@ -49,6 +49,9 @@ async function ContactsSection({
   const query = typeof params.q === "string" ? params.q : "";
   const addedId =
     typeof params.added === "string" ? parseContactId(params.added) : null;
+  // The contact is gone, so its name comes from the URL; 200 is the name limit
+  const deletedName =
+    typeof params.deleted === "string" ? params.deleted.slice(0, 200) : "";
 
   const { contacts, total } = await listContacts(query);
   const added = addedId
@@ -72,6 +75,15 @@ async function ContactsSection({
             Открыть карточку
           </Link>
           <ScrollIntoView elementId={`contact-${added.id}`} />
+        </div>
+      )}
+
+      {deletedName && (
+        <div
+          role="status"
+          className="rounded-lg border border-success-line bg-success px-4 py-3 text-sm break-words text-success-ink"
+        >
+          Контакт «{deletedName}» удалён.
         </div>
       )}
 

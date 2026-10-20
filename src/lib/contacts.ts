@@ -77,6 +77,16 @@ export async function listNotes(contactId: number) {
     .orderBy(desc(notes.createdAt), desc(notes.id));
 }
 
+export async function countNotes(contactId: number) {
+  await connection();
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(notes)
+    .where(eq(notes.contactId, contactId));
+  return total;
+}
+
 export async function createContact(input: ContactInput) {
   const [created] = await db
     .insert(contacts)
@@ -92,6 +102,16 @@ export async function updateContact(id: number, input: ContactInput) {
     .where(eq(contacts.id, id))
     .returning({ id: contacts.id });
   return updated.length > 0;
+}
+
+// Returns the deleted contact's name, or null if it was already gone.
+// Its notes are removed by the database (on delete cascade).
+export async function deleteContact(id: number) {
+  const [deleted] = await db
+    .delete(contacts)
+    .where(eq(contacts.id, id))
+    .returning({ name: contacts.name });
+  return deleted?.name ?? null;
 }
 
 export async function addNote(contactId: number, body: string) {
