@@ -13,7 +13,10 @@ import {
 
 import { CONTACT_FREQUENCIES } from "../lib/contact-frequency";
 
-export const contactFrequency = pgEnum("contact_frequency", CONTACT_FREQUENCIES);
+export const contactFrequency = pgEnum(
+  "contact_frequency",
+  CONTACT_FREQUENCIES,
+);
 
 export const contacts = pgTable("contacts", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

@@ -107,7 +107,10 @@ async function ContactDetails({ rawId }: { rawId: string }) {
                   href={`mailto:${contact.email}`}
                   className="inline-flex items-center gap-2 break-all underline-offset-4 hover:underline"
                 >
-                  <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <Mail
+                    className="size-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
                   {contact.email}
                 </a>
               )}
@@ -147,10 +150,15 @@ async function ContactDetails({ rawId }: { rawId: string }) {
           <ol className="mt-3 border-b">
             {notes.map((note) => (
               <li key={note.id} className="border-t py-5">
-                <time dateTime={note.createdAt.toISOString()} className="eyebrow">
+                <time
+                  dateTime={note.createdAt.toISOString()}
+                  className="eyebrow"
+                >
                   {formatDateTime(note.createdAt)}
                 </time>
-                <p className="mt-2 whitespace-pre-wrap break-words">{note.body}</p>
+                <p className="mt-2 whitespace-pre-wrap break-words">
+                  {note.body}
+                </p>
               </li>
             ))}
           </ol>
@@ -177,7 +185,9 @@ function DetailRow({
         {label}
       </dt>
       <dd className="-mt-3 sm:mt-0">
-        {children || <span className="text-muted-foreground/70">Не указано</span>}
+        {children || (
+          <span className="text-muted-foreground/70">Не указано</span>
+        )}
       </dd>
     </div>
   );

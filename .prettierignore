@@ -1,0 +1,10 @@
+# Prettier also skips everything in .gitignore
+
+# Generated and kept up to date by tools, not edited by hand
+pnpm-lock.yaml
+drizzle/
+.claude/
+openspec/
+
+# Prose for people, not code
+*.md

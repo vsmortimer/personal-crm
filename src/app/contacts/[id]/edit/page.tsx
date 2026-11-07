@@ -47,7 +47,9 @@ async function EditContact({ rawId }: { rawId: string }) {
       <Card>
         <CardHeader>
           <CardTitle>
-            <h1 className="font-display text-title font-medium sm:text-title-lg">Изменить контакт</h1>
+            <h1 className="font-display text-title font-medium sm:text-title-lg">
+              Изменить контакт
+            </h1>
           </CardTitle>
         </CardHeader>
         <CardContent>

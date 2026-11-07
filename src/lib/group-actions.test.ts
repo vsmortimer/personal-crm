@@ -3,8 +3,18 @@ import { describe, expect, test } from "vitest";
 
 import { db } from "@/db";
 import { contacts, notes } from "@/db/schema";
-import { deleteGroup, listContactGroups, listGroups, renameGroup } from "@/lib/groups";
-import { addToGroup, insertContact, insertGroup, insertNote } from "../../test/helpers";
+import {
+  deleteGroup,
+  listContactGroups,
+  listGroups,
+  renameGroup,
+} from "@/lib/groups";
+import {
+  addToGroup,
+  insertContact,
+  insertGroup,
+  insertNote,
+} from "../../test/helpers";
 
 async function groupNames() {
   return (await listGroups()).map((group) => group.name);
@@ -27,7 +37,9 @@ describe("renameGroup", () => {
     expect(await listGroups()).toEqual([
       { id: tennis, name: "Теннис", contactCount: 2 },
     ]);
-    expect(await listContactGroups(ivan)).toEqual([{ id: tennis, name: "Теннис" }]);
+    expect(await listContactGroups(ivan)).toEqual([
+      { id: tennis, name: "Теннис" },
+    ]);
   });
 
   // Scenario: «Название уже занято»
@@ -106,7 +118,9 @@ describe("deleteGroup", () => {
     expect(await db.select({ body: notes.body }).from(notes)).toEqual([
       { body: "Зовёт играть в теннис по субботам" },
     ]);
-    expect(await listContactGroups(ivan)).toEqual([{ id: friends, name: "Друзья" }]);
+    expect(await listContactGroups(ivan)).toEqual([
+      { id: friends, name: "Друзья" },
+    ]);
   });
 
   // Scenario: «Удалил последнюю группу»: no groups means no filter

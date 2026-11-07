@@ -14,8 +14,7 @@ export type GroupChoice = {
 };
 
 export type AddGroupResult =
-  | { ok: true; choice: GroupChoice }
-  | { ok: false; error: string };
+  { ok: true; choice: GroupChoice } | { ok: false; error: string };
 
 // Letter case doesn't matter, as in the database's unique index on lower(name)
 function sameName(a: string, b: string) {
@@ -61,7 +60,10 @@ function withGroup(
   if (choice.newGroups.some((group) => sameName(group.name, name))) {
     return toggleNewGroup(choice, name, true);
   }
-  return { ...choice, newGroups: [...choice.newGroups, { name, checked: true }] };
+  return {
+    ...choice,
+    newGroups: [...choice.newGroups, { name, checked: true }],
+  };
 }
 
 // «Добавить» or Enter in the «Новая группа» field
@@ -79,7 +81,9 @@ export function addGroup(
 
 // Unchecked new groups stay in the form but are not sent, so not created
 export function submittedNewGroups(choice: GroupChoice): string[] {
-  return choice.newGroups.filter((group) => group.checked).map((group) => group.name);
+  return choice.newGroups
+    .filter((group) => group.checked)
+    .map((group) => group.name);
 }
 
 // The form's starting point, also after a failed save with the sent values
@@ -88,8 +92,8 @@ export function initialGroupChoice(
   groupIds: number[],
   newGroups: string[],
 ): GroupChoice {
-  return newGroups.reduce(
-    (choice, name) => withGroup(groups, choice, name),
-    { checkedIds: groupIds, newGroups: [] } as GroupChoice,
-  );
+  return newGroups.reduce((choice, name) => withGroup(groups, choice, name), {
+    checkedIds: groupIds,
+    newGroups: [],
+  } as GroupChoice);
 }

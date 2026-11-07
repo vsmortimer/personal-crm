@@ -48,7 +48,10 @@ async function main() {
 
     const after = await appliedTimestamps(db);
     const tags = (filter: (entry: JournalEntry) => boolean) =>
-      journal.filter(filter).map((entry) => entry.tag).join(", ") || "none";
+      journal
+        .filter(filter)
+        .map((entry) => entry.tag)
+        .join(", ") || "none";
 
     console.log(`Applied before: ${tags((entry) => before.has(entry.when))}`);
     console.log(
@@ -61,7 +64,9 @@ async function main() {
         `Migrations not applied: ${missing.map((entry) => entry.tag).join(", ")}`,
       );
     }
-    console.log(`Database schema is up to date: ${journal.length} migration(s).`);
+    console.log(
+      `Database schema is up to date: ${journal.length} migration(s).`,
+    );
   } finally {
     await client.end();
   }

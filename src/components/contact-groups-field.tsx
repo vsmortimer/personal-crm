@@ -29,7 +29,8 @@ export function ContactGroupsField({
   initialGroupIds,
   initialNewGroups,
 }: ContactGroupsFieldProps) {
-  const initial = () => initialGroupChoice(groups, initialGroupIds, initialNewGroups);
+  const initial = () =>
+    initialGroupChoice(groups, initialGroupIds, initialNewGroups);
   const [choice, setChoice] = useState(initial);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string>();
@@ -75,7 +76,9 @@ export function ContactGroupsField({
                 value={String(group.id)}
                 checked={choice.checkedIds.includes(group.id)}
                 onCheckedChange={(checked) =>
-                  setChoice((current) => toggleGroup(current, group.id, checked))
+                  setChoice((current) =>
+                    toggleGroup(current, group.id, checked),
+                  )
                 }
               />
             </li>
@@ -86,7 +89,9 @@ export function ContactGroupsField({
                 label={group.name}
                 checked={group.checked}
                 onCheckedChange={(checked) =>
-                  setChoice((current) => toggleNewGroup(current, group.name, checked))
+                  setChoice((current) =>
+                    toggleNewGroup(current, group.name, checked),
+                  )
                 }
               />
             </li>
@@ -117,7 +122,12 @@ export function ContactGroupsField({
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "newGroup-error" : undefined}
           />
-          <Button type="button" variant="outline" className="h-11" onClick={add}>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11"
+            onClick={add}
+          >
             Добавить
           </Button>
         </div>

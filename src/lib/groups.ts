@@ -116,9 +116,13 @@ export async function renameGroup(
     const [other] = await db
       .select({ name: groups.name })
       .from(groups)
-      .where(and(sql`lower(${groups.name}) = lower(${name})`, ne(groups.id, id)))
+      .where(
+        and(sql`lower(${groups.name}) = lower(${name})`, ne(groups.id, id)),
+      )
       .limit(1);
-    return other ? { status: "invalid" as const, error: `Группа «${other.name}» уже есть` } : null;
+    return other
+      ? { status: "invalid" as const, error: `Группа «${other.name}» уже есть` }
+      : null;
   };
 
   const taken = await takenBy();
@@ -130,7 +134,9 @@ export async function renameGroup(
       .set({ name })
       .where(eq(groups.id, id))
       .returning({ id: groups.id });
-    return renamed.length > 0 ? { status: "renamed", name } : { status: "missing" };
+    return renamed.length > 0
+      ? { status: "renamed", name }
+      : { status: "missing" };
   } catch (error) {
     // Another tab took the name between the check and the update
     if (postgresErrorCode(error) === UNIQUE_VIOLATION) {

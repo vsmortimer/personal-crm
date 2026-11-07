@@ -7,11 +7,17 @@ import { resetDatabase } from "./database";
 
 const EXISTING_CONTACTS = ["Анна Смирнова", "Борис Петров", "Вера Иванова"];
 const NEW_CONTACT = "Дмитрий Орлов";
-const NOTE = "Созвонились после конференции: договорились встретиться в субботу";
+const NOTE =
+  "Созвонились после конференции: договорились встретиться в субботу";
 
 // The list shows the surname first and is sorted by it
 const ROWS_BEFORE = ["Иванова Вера", "Петров Борис", "Смирнова Анна"];
-const ROWS_AFTER = ["Иванова Вера", "Орлов Дмитрий", "Петров Борис", "Смирнова Анна"];
+const ROWS_AFTER = [
+  "Иванова Вера",
+  "Орлов Дмитрий",
+  "Петров Борис",
+  "Смирнова Анна",
+];
 
 // The contacts have no groups and no contact frequency, so the home page has
 // neither the group filter nor «Пора связаться»: every list item is a contact
@@ -60,7 +66,9 @@ test("add a contact, find it by name and add a note that is kept", async ({
     await expect(contactRows(page)).toHaveText(["Орлов Дмитрий"]);
 
     await contactRows(page).getByRole("link").click();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(NEW_CONTACT);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      NEW_CONTACT,
+    );
   });
 
   await test.step("add a note: it appears on the card", async () => {
@@ -72,13 +80,17 @@ test("add a contact, find it by name and add a note that is kept", async ({
     await expect(notes(page)).toHaveCount(1);
     await expect(notes(page)).toContainText(NOTE);
     await expect(page.getByText("1 заметка")).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Новая заметка" })).toHaveValue("");
+    await expect(
+      page.getByRole("textbox", { name: "Новая заметка" }),
+    ).toHaveValue("");
   });
 
   await test.step("reload the card: the note is still there", async () => {
     await page.reload();
 
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(NEW_CONTACT);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      NEW_CONTACT,
+    );
     await expect(notes(page)).toHaveCount(1);
     await expect(notes(page)).toContainText(NOTE);
   });
@@ -96,7 +108,9 @@ test("add a contact, find it by name and add a note that is kept", async ({
       await expect(contactRows(other)).toHaveText(ROWS_AFTER);
 
       await other.goto(cardUrl);
-      await expect(other.getByRole("heading", { level: 1 })).toHaveText(NEW_CONTACT);
+      await expect(other.getByRole("heading", { level: 1 })).toHaveText(
+        NEW_CONTACT,
+      );
       await expect(notes(other)).toHaveCount(1);
       await expect(notes(other)).toContainText(NOTE);
     } finally {

@@ -31,13 +31,15 @@ export function formatDateTime(date: Date): string {
 
 // initials("Андрей Ковалёв") -> "АК"; a single word gives one letter
 export function initials(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    // Array.from keeps an emoji or other two-unit character whole
-    .map((word) => (Array.from(word)[0] ?? "").toLocaleUpperCase("ru-RU"))
-    .join("");
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      // Array.from keeps an emoji or other two-unit character whole
+      .map((word) => (Array.from(word)[0] ?? "").toLocaleUpperCase("ru-RU"))
+      .join("")
+  );
 }
 
 // Contact and group ids in URLs and forms are positive 32-bit integers

@@ -15,7 +15,9 @@ describe("groupNameSchema", () => {
 
   // Scenario: «Слишком длинное название»
   test("a name of 51 characters is too long", () => {
-    expect(errorOf("я".repeat(51))).toBe("Слишком длинно: не больше 50 символов");
+    expect(errorOf("я".repeat(51))).toBe(
+      "Слишком длинно: не больше 50 символов",
+    );
   });
 
   test("a name of 50 characters is fine", () => {

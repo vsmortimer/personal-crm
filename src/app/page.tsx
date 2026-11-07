@@ -32,7 +32,10 @@ export default function ContactsPage({ searchParams }: PageProps<"/">) {
         {/* Full width on phones, like the landing's button */}
         <Link
           href="/contacts/new"
-          className={buttonVariants({ size: "lg", className: "w-full sm:w-auto" })}
+          className={buttonVariants({
+            size: "lg",
+            className: "w-full sm:w-auto",
+          })}
         >
           <Plus aria-hidden />
           Добавить контакт
@@ -59,7 +62,9 @@ async function ContactsSection({
     typeof params.deleted === "string" ? params.deleted.slice(0, 200) : "";
   // The same for a deleted group; 50 is the group name limit
   const deletedGroupName =
-    typeof params.deletedGroup === "string" ? params.deletedGroup.slice(0, 50) : "";
+    typeof params.deletedGroup === "string"
+      ? params.deletedGroup.slice(0, 50)
+      : "";
 
   // An unknown or broken ?group= shows everyone, as «Все»
   const groups = await listGroups();
@@ -83,7 +88,11 @@ async function ContactsSection({
       <ContactSearch query={query} groupId={group?.id ?? null} />
 
       {groups.length > 0 && (
-        <GroupFilter groups={groups} selectedId={group?.id ?? null} query={query} />
+        <GroupFilter
+          groups={groups}
+          selectedId={group?.id ?? null}
+          query={query}
+        />
       )}
 
       {added && (

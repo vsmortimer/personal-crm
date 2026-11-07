@@ -22,7 +22,9 @@ describe("groups table", () => {
   test("a name longer than 50 characters is not allowed", async () => {
     await insertGroup("я".repeat(50));
 
-    expect(await failureCode(insertGroup("я".repeat(51)))).toBe(CHECK_VIOLATION);
+    expect(await failureCode(insertGroup("я".repeat(51)))).toBe(
+      CHECK_VIOLATION,
+    );
   });
 
   test("an empty name is not allowed", async () => {
@@ -65,7 +67,10 @@ describe("contact_groups table", () => {
     ]);
     expect(
       await db
-        .select({ contactId: contactGroups.contactId, groupId: contactGroups.groupId })
+        .select({
+          contactId: contactGroups.contactId,
+          groupId: contactGroups.groupId,
+        })
         .from(contactGroups),
     ).toEqual([{ contactId: ivan, groupId: friends }]);
   });

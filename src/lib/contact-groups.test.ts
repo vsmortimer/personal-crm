@@ -2,7 +2,11 @@
 // and reading the groups back (listGroups / listContactGroups)
 import { describe, expect, test } from "vitest";
 
-import { createContact, updateContact, type ContactInput } from "@/lib/contacts";
+import {
+  createContact,
+  updateContact,
+  type ContactInput,
+} from "@/lib/contacts";
 import { addGroup } from "@/lib/group-form";
 import { listContactGroups, listGroups } from "@/lib/groups";
 import { addToGroup, insertContact, insertGroup } from "../../test/helpers";
@@ -117,7 +121,9 @@ describe("createContact with groups", () => {
       newGroups: ["теннис"],
     });
 
-    expect(await listContactGroups(anna)).toEqual([{ id: tennis, name: "Теннис" }]);
+    expect(await listContactGroups(anna)).toEqual([
+      { id: tennis, name: "Теннис" },
+    ]);
     expect(await listGroups()).toEqual([
       { id: tennis, name: "Теннис", contactCount: 1 },
     ]);

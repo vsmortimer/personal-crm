@@ -144,7 +144,9 @@ export function ContactForm({
 
           {/* Under the phone on wide screens, so it takes half a row */}
           <Field data-invalid={!!state.errors.contactFrequency}>
-            <FieldLabel htmlFor="contactFrequency">Как часто общаться</FieldLabel>
+            <FieldLabel htmlFor="contactFrequency">
+              Как часто общаться
+            </FieldLabel>
             <NativeSelect
               {...fieldProps("contactFrequency")}
               aria-describedby={

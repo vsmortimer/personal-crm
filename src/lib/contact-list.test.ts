@@ -26,7 +26,10 @@ describe("groups in the list rows", () => {
     const { contacts } = await listContacts("");
 
     expect(contacts).toEqual([
-      expect.objectContaining({ listName: "Петров Иван", groups: ["Друзья", "Теннис"] }),
+      expect.objectContaining({
+        listName: "Петров Иван",
+        groups: ["Друзья", "Теннис"],
+      }),
     ]);
   });
 
@@ -63,7 +66,10 @@ describe("the group filter", () => {
   test("a selected group leaves only its contacts, in the usual order", async () => {
     const { tennis } = await people();
 
-    expect(await listNames("", tennis)).toEqual(["Петров Иван", "Смирнова Анна"]);
+    expect(await listNames("", tennis)).toEqual([
+      "Петров Иван",
+      "Смирнова Анна",
+    ]);
   });
 
   // Scenario: «Другая группа»
@@ -147,7 +153,13 @@ describe("the selected group above the list", () => {
   test("the number of people: 5 in a full group, 0 in an empty one", async () => {
     const tennis = await insertGroup("Теннис");
     const analysts = await insertGroup("Аналитики");
-    for (const name of ["Анна Смирнова", "Иван Петров", "Олег Сидоров", "Пётр Котов", "Мама"]) {
+    for (const name of [
+      "Анна Смирнова",
+      "Иван Петров",
+      "Олег Сидоров",
+      "Пётр Котов",
+      "Мама",
+    ]) {
       await addToGroup(await insertContact(name), tennis);
     }
 
@@ -155,7 +167,10 @@ describe("the selected group above the list", () => {
       { id: analysts, name: "Аналитики", contactCount: 0 },
       { id: tennis, name: "Теннис", contactCount: 5 },
     ]);
-    expect(await listContacts("", analysts)).toEqual({ contacts: [], total: 0 });
+    expect(await listContacts("", analysts)).toEqual({
+      contacts: [],
+      total: 0,
+    });
   });
 });
 
@@ -200,7 +215,9 @@ test("«Пора связаться» doesn't depend on the selected group", asy
   await addToGroup(ivan.id, friends);
 
   // The home page with «Теннис» selected
-  expect(selectedGroup(await listGroups(), String(tennis))?.name).toBe("Теннис");
+  expect(selectedGroup(await listGroups(), String(tennis))?.name).toBe(
+    "Теннис",
+  );
   expect(await listNames("", tennis)).toEqual(["Смирнова Анна"]);
 
   expect((await listDueContacts()).map((contact) => contact.listName)).toEqual([

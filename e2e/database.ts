@@ -14,7 +14,9 @@ async function withDatabase(run: (sql: postgres.Sql) => Promise<void>) {
     onnotice: () => {},
   });
   try {
-    const [{ name }] = await sql<{ name: string }[]>`select current_database() as name`;
+    const [{ name }] = await sql<
+      { name: string }[]
+    >`select current_database() as name`;
     assertTestDatabase(name);
     await run(sql);
   } finally {

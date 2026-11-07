@@ -66,7 +66,9 @@ export function ContactList({
                     )}
                   </div>
                   <div className="hidden shrink-0 text-right text-sm text-muted-foreground sm:block">
-                    {contact.phone && <p className="tabular-nums">{contact.phone}</p>}
+                    {contact.phone && (
+                      <p className="tabular-nums">{contact.phone}</p>
+                    )}
                     {contact.email && <p>{contact.email}</p>}
                   </div>
                   <ChevronRight

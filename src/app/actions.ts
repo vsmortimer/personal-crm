@@ -42,7 +42,9 @@ function firstErrors(error: z.ZodError): ContactFormState["errors"] {
   const { fieldErrors } = z.flattenError(error);
   const errors: ContactFormState["errors"] = {};
   for (const field of CONTACT_FIELDS) {
-    const message = (fieldErrors as Partial<Record<ContactField, string[]>>)[field]?.[0];
+    const message = (fieldErrors as Partial<Record<ContactField, string[]>>)[
+      field
+    ]?.[0];
     if (message) errors[field] = message;
   }
   return errors;
@@ -59,7 +61,9 @@ function parseContact(
   if (!parsed.success) {
     return {
       ok: false,
-      state: failedState(prevState, formData, { errors: firstErrors(parsed.error) }),
+      state: failedState(prevState, formData, {
+        errors: firstErrors(parsed.error),
+      }),
     };
   }
   return { ok: true, data: parsed.data, groups: parseContactGroups(formData) };
@@ -68,7 +72,10 @@ function parseContact(
 function failedState(
   prevState: ContactFormState,
   formData: FormData,
-  { errors = {}, message }: Pick<Partial<ContactFormState>, "errors" | "message">,
+  {
+    errors = {},
+    message,
+  }: Pick<Partial<ContactFormState>, "errors" | "message">,
 ): ContactFormState {
   return {
     values: readContactValues(formData),
@@ -197,7 +204,9 @@ export async function renameGroupAction(
 }
 
 // Used as a form action through useActionState; needs nothing from the form
-export async function deleteGroupAction(groupId: number): Promise<DeleteGroupState> {
+export async function deleteGroupAction(
+  groupId: number,
+): Promise<DeleteGroupState> {
   let name: string | null;
   try {
     name = await deleteGroup(groupId);

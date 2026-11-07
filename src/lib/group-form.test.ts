@@ -17,7 +17,8 @@ const nothingChecked: GroupChoice = { checkedIds: [], newGroups: [] };
 
 function added(choice: GroupChoice, input: string, groups = GROUPS) {
   const result = addGroup(groups, choice, input);
-  if (!result.ok) throw new Error(`Expected "${input}" to be added: ${result.error}`);
+  if (!result.ok)
+    throw new Error(`Expected "${input}" to be added: ${result.error}`);
   return result.choice;
 }
 
@@ -69,7 +70,11 @@ describe("addGroup", () => {
   });
 
   test("a name already added in this form checks it again instead of a copy", () => {
-    const unchecked = toggleNewGroup(added(nothingChecked, "Аналитики"), "Аналитики", false);
+    const unchecked = toggleNewGroup(
+      added(nothingChecked, "Аналитики"),
+      "Аналитики",
+      false,
+    );
 
     expect(added(unchecked, "аналитики")).toEqual({
       checkedIds: [],

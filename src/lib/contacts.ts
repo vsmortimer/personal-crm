@@ -55,7 +55,10 @@ function inGroup(groupId: number) {
 
 // With a group, both the list and the total are within that group:
 // "Найдено: 2 из 5" where 5 is how many people are in the group
-export async function listContacts(query: string, groupId: number | null = null) {
+export async function listContacts(
+  query: string,
+  groupId: number | null = null,
+) {
   // Contacts must be read fresh on every request, never prerendered
   await connection();
 
@@ -110,7 +113,10 @@ const FREQUENCY_INTERVALS: Record<ContactFrequency, string> = {
 
 const frequencyInterval = sql`case ${contacts.contactFrequency} ${sql.raw(
   Object.entries(FREQUENCY_INTERVALS)
-    .map(([frequency, interval]) => `when '${frequency}' then interval '${interval}'`)
+    .map(
+      ([frequency, interval]) =>
+        `when '${frequency}' then interval '${interval}'`,
+    )
     .join(" "),
 )} end`;
 
@@ -124,30 +130,34 @@ const dueAt = sql`${lastContactAt} + ${frequencyInterval}`;
 export async function listDueContacts() {
   await connection();
 
-  return db
-    .select({
-      id: contacts.id,
-      listName: listName.as("list_name"),
-      contactFrequency: sql<ContactFrequency>`${contacts.contactFrequency}`.as(
-        "contact_frequency",
-      ),
-      // Whole days, against the same now() as the filter below
-      daysSinceContact: sql<number>`floor(extract(epoch from now() - ${lastContactAt}) / 86400)::int`.as(
-        "days_since_contact",
-      ),
-    })
-    .from(contacts)
-    .leftJoin(notes, eq(notes.contactId, contacts.id))
-    .where(isNotNull(contacts.contactFrequency))
-    .groupBy(contacts.id)
-    .having(sql`${dueAt} < now()`)
-    // The longest overdue first, then in the same order as the contact list
-    .orderBy(
-      dueAt,
-      sql`${surname} collate "ru-x-icu"`,
-      sql`${listName} collate "ru-x-icu"`,
-      contacts.id,
-    );
+  return (
+    db
+      .select({
+        id: contacts.id,
+        listName: listName.as("list_name"),
+        contactFrequency:
+          sql<ContactFrequency>`${contacts.contactFrequency}`.as(
+            "contact_frequency",
+          ),
+        // Whole days, against the same now() as the filter below
+        daysSinceContact:
+          sql<number>`floor(extract(epoch from now() - ${lastContactAt}) / 86400)::int`.as(
+            "days_since_contact",
+          ),
+      })
+      .from(contacts)
+      .leftJoin(notes, eq(notes.contactId, contacts.id))
+      .where(isNotNull(contacts.contactFrequency))
+      .groupBy(contacts.id)
+      .having(sql`${dueAt} < now()`)
+      // The longest overdue first, then in the same order as the contact list
+      .orderBy(
+        dueAt,
+        sql`${surname} collate "ru-x-icu"`,
+        sql`${listName} collate "ru-x-icu"`,
+        contacts.id,
+      )
+  );
 }
 
 export type DueContact = Awaited<ReturnType<typeof listDueContacts>>[number];
