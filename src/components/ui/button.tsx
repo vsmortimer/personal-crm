@@ -1,6 +1,6 @@
-import { Button as ButtonPrimitive } from "@base-ui/react/button"
-import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "cn"
+import { Button as ButtonPrimitive } from "@base-ui/react/button";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 
 const variantClasses = cva(
   // Focus uses the global :focus-visible outline, as on the landing
@@ -38,13 +38,13 @@ const variantClasses = cva(
       variant: "default",
       size: "default",
     },
-  }
-)
+  },
+);
 
 // Links styled as buttons use these classes directly, so conflicts between the base
 // and a variant (e.g. border-transparent vs border-input) are resolved here, not by CSS order
 function buttonVariants(props?: Parameters<typeof variantClasses>[0]) {
-  return cn(variantClasses(props))
+  return cn(variantClasses(props));
 }
 
 function Button({
@@ -59,7 +59,7 @@ function Button({
       className={buttonVariants({ variant, size, className })}
       {...props}
     />
-  )
+  );
 }
 
-export { Button, buttonVariants }
+export { Button, buttonVariants };

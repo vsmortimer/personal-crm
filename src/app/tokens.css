@@ -6,22 +6,22 @@
 
 :root {
   /* Landing palette, same names and values */
-  --paper: #F3EEE5;      /* page background */
-  --sand: #EAE2D4;       /* muted surfaces: letter headers, hovers, skeletons */
-  --ink: #2E2219;        /* main text, primary button */
-  --ink-soft: #5A4A3C;   /* secondary text */
-  --ink-mute: #6B5A4A;   /* small captions and labels */
-  --ink-hover: #1F160F;  /* primary button hover */
-  --brand: #8A5A3B;      /* the landing's `accent`: display accents, focus */
-  --line: #D9CFC0;       /* lines and borders */
-  --line-soft: #E6DCCB;  /* initials circle */
+  --paper: #f3eee5; /* page background */
+  --sand: #eae2d4; /* muted surfaces: letter headers, hovers, skeletons */
+  --ink: #2e2219; /* main text, primary button */
+  --ink-soft: #5a4a3c; /* secondary text */
+  --ink-mute: #6b5a4a; /* small captions and labels */
+  --ink-hover: #1f160f; /* primary button hover */
+  --brand: #8a5a3b; /* the landing's `accent`: display accents, focus */
+  --line: #d9cfc0; /* lines and borders */
+  --line-soft: #e6dccb; /* initials circle */
 
   /* App-only colors the landing has no use for; text on them passes WCAG AA */
-  --line-strong: #98866E;  /* input borders, 3:1 on paper */
-  --error: #A13D2D;        /* 5.6:1 on paper */
-  --success: #E2E4CC;      /* "contact added" background */
-  --success-ink: #3E4A26;  /* text on success, 7.3:1 */
-  --success-line: #C4C8A2;
+  --line-strong: #98866e; /* input borders, 3:1 on paper */
+  --error: #a13d2d; /* 5.6:1 on paper */
+  --success: #e2e4cc; /* "contact added" background */
+  --success-ink: #3e4a26; /* text on success, 7.3:1 */
+  --success-line: #c4c8a2;
 
   /* shadcn/ui semantic tokens, mapped onto the palette */
   --background: var(--paper);

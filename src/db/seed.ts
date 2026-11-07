@@ -1,4 +1,4 @@
-// Fills an empty database with realistic test contacts and notes.
+// Fills an empty database with realistic test contacts, notes and groups.
 // Usage: pnpm db:seed
 import { loadEnvConfig } from "@next/env";
 import { count } from "drizzle-orm";
@@ -7,7 +7,7 @@ import postgres from "postgres";
 
 import { CONTACT_FREQUENCIES } from "../lib/contact-frequency";
 import { getDatabaseUrl } from "./connection-url";
-import { contacts, notes } from "./schema";
+import { contactGroups, contacts, groups, notes } from "./schema";
 
 loadEnvConfig(process.cwd());
 
@@ -30,7 +30,8 @@ function createRandom(seed: number) {
 const random = createRandom(20261010);
 const randomInt = (min: number, max: number) =>
   min + Math.floor(random() * (max - min + 1));
-const pick = <T>(items: readonly T[]): T => items[randomInt(0, items.length - 1)];
+const pick = <T>(items: readonly T[]): T =>
+  items[randomInt(0, items.length - 1)];
 const chance = (probability: number) => random() < probability;
 
 // A separate generator, so the contact frequencies leave the rest
@@ -38,68 +39,335 @@ const chance = (probability: number) => random() < probability;
 const frequencyRandom = createRandom(20261020);
 function pickFrequency() {
   if (frequencyRandom() >= 1 / 3) return null;
-  return CONTACT_FREQUENCIES[Math.floor(frequencyRandom() * CONTACT_FREQUENCIES.length)];
+  return CONTACT_FREQUENCIES[
+    Math.floor(frequencyRandom() * CONTACT_FREQUENCIES.length)
+  ];
+}
+
+const GROUP_NAMES = [
+  "Семья",
+  "Друзья",
+  "Знакомые",
+  "Теннис",
+  "Аналитики",
+] as const;
+
+// A separate generator as well: about half of the contacts get one or two groups
+const groupRandom = createRandom(20261031);
+function pickGroups(): string[] {
+  if (groupRandom() >= 0.5) return [];
+  const pool: string[] = [...GROUP_NAMES];
+  const amount = groupRandom() < 0.7 ? 1 : 2;
+  return Array.from(
+    { length: amount },
+    () => pool.splice(Math.floor(groupRandom() * pool.length), 1)[0],
+  );
 }
 
 const MALE_FIRST_NAMES = [
-  "Александр", "Алексей", "Андрей", "Антон", "Артём", "Борис", "Вадим",
-  "Валентин", "Василий", "Виктор", "Виталий", "Владимир", "Владислав",
-  "Вячеслав", "Геннадий", "Георгий", "Глеб", "Григорий", "Даниил", "Денис",
-  "Дмитрий", "Евгений", "Егор", "Иван", "Игорь", "Илья", "Кирилл",
-  "Константин", "Лев", "Леонид", "Максим", "Марк", "Матвей", "Михаил",
-  "Никита", "Николай", "Олег", "Павел", "Пётр", "Роман", "Руслан",
-  "Семён", "Сергей", "Станислав", "Степан", "Тимофей", "Тимур", "Фёдор",
-  "Юрий", "Ярослав",
+  "Александр",
+  "Алексей",
+  "Андрей",
+  "Антон",
+  "Артём",
+  "Борис",
+  "Вадим",
+  "Валентин",
+  "Василий",
+  "Виктор",
+  "Виталий",
+  "Владимир",
+  "Владислав",
+  "Вячеслав",
+  "Геннадий",
+  "Георгий",
+  "Глеб",
+  "Григорий",
+  "Даниил",
+  "Денис",
+  "Дмитрий",
+  "Евгений",
+  "Егор",
+  "Иван",
+  "Игорь",
+  "Илья",
+  "Кирилл",
+  "Константин",
+  "Лев",
+  "Леонид",
+  "Максим",
+  "Марк",
+  "Матвей",
+  "Михаил",
+  "Никита",
+  "Николай",
+  "Олег",
+  "Павел",
+  "Пётр",
+  "Роман",
+  "Руслан",
+  "Семён",
+  "Сергей",
+  "Станислав",
+  "Степан",
+  "Тимофей",
+  "Тимур",
+  "Фёдор",
+  "Юрий",
+  "Ярослав",
 ] as const;
 
 const FEMALE_FIRST_NAMES = [
-  "Агата", "Алёна", "Алина", "Алиса", "Анастасия", "Анна", "Арина",
-  "Валентина", "Валерия", "Вера", "Вероника", "Виктория", "Галина",
-  "Дарья", "Диана", "Ева", "Евгения", "Екатерина", "Елена", "Елизавета",
-  "Жанна", "Зоя", "Ирина", "Карина", "Кира", "Ксения", "Лариса", "Лидия",
-  "Любовь", "Людмила", "Маргарита", "Марина", "Мария", "Милана",
-  "Надежда", "Наталья", "Нина", "Оксана", "Ольга", "Полина", "Светлана",
-  "София", "Таисия", "Тамара", "Татьяна", "Ульяна", "Юлия", "Яна",
+  "Агата",
+  "Алёна",
+  "Алина",
+  "Алиса",
+  "Анастасия",
+  "Анна",
+  "Арина",
+  "Валентина",
+  "Валерия",
+  "Вера",
+  "Вероника",
+  "Виктория",
+  "Галина",
+  "Дарья",
+  "Диана",
+  "Ева",
+  "Евгения",
+  "Екатерина",
+  "Елена",
+  "Елизавета",
+  "Жанна",
+  "Зоя",
+  "Ирина",
+  "Карина",
+  "Кира",
+  "Ксения",
+  "Лариса",
+  "Лидия",
+  "Любовь",
+  "Людмила",
+  "Маргарита",
+  "Марина",
+  "Мария",
+  "Милана",
+  "Надежда",
+  "Наталья",
+  "Нина",
+  "Оксана",
+  "Ольга",
+  "Полина",
+  "Светлана",
+  "София",
+  "Таисия",
+  "Тамара",
+  "Татьяна",
+  "Ульяна",
+  "Юлия",
+  "Яна",
 ] as const;
 
 // Male surname forms; female forms are derived in feminineSurname()
 const SURNAMES = [
-  "Иванов", "Смирнов", "Кузнецов", "Попов", "Васильев", "Петров",
-  "Соколов", "Михайлов", "Новиков", "Фёдоров", "Морозов", "Волков",
-  "Алексеев", "Лебедев", "Семёнов", "Егоров", "Павлов", "Козлов",
-  "Степанов", "Николаев", "Орлов", "Андреев", "Макаров", "Никитин",
-  "Захаров", "Зайцев", "Соловьёв", "Борисов", "Яковлев", "Григорьев",
-  "Романов", "Воробьёв", "Сергеев", "Кузьмин", "Фролов", "Александров",
-  "Дмитриев", "Королёв", "Гусев", "Киселёв", "Ильин", "Максимов",
-  "Поляков", "Сорокин", "Виноградов", "Ковалёв", "Белов", "Медведев",
-  "Антонов", "Тарасов", "Жуков", "Баранов", "Филиппов", "Комаров",
-  "Давыдов", "Беляев", "Герасимов", "Богданов", "Осипов", "Сидоров",
-  "Матвеев", "Титов", "Марков", "Миронов", "Крылов", "Куликов",
-  "Карпов", "Власов", "Мельников", "Денисов", "Гаврилов", "Тихонов",
-  "Казаков", "Афанасьев", "Данилов", "Савельев", "Тимофеев", "Фомин",
-  "Чернов", "Абрамов", "Мартынов", "Ефимов", "Федотов", "Щербаков",
-  "Назаров", "Калинин", "Исаев", "Чернышёв", "Быков", "Маслов",
-  "Родионов", "Коновалов", "Лазарев", "Воронин", "Климов", "Филатов",
-  "Пономарёв", "Голубев", "Кудрявцев", "Прохоров", "Наумов", "Потапов",
-  "Журавлёв", "Овчинников", "Трофимов", "Леонов", "Соболев", "Ермаков",
-  "Колесников", "Гончаров", "Емельянов", "Никифоров", "Грачёв", "Котов",
-  "Гришин", "Ефремов", "Архипов", "Громов", "Кириллов", "Малышев",
-  "Панов", "Моисеев", "Румянцев", "Акимов", "Кондратьев", "Бирюков",
-  "Горбунов", "Анисимов", "Ерёмин", "Тихомиров", "Галкин", "Лукьянов",
-  "Михеев", "Скворцов", "Юдин", "Белоусов", "Нестеров", "Симонов",
-  "Прокофьев", "Харитонов", "Князев", "Цветков", "Левин", "Митрофанов",
-  "Воронцов", "Аксёнов", "Софронов", "Мальцев", "Логинов", "Горшков",
-  "Савин", "Краснов", "Майоров", "Демидов", "Елисеев", "Рыбаков",
-  "Сафонов", "Плотников", "Дёмин", "Хохлов", "Жданов", "Руденко",
-  "Шевчук", "Бондаренко", "Ткаченко", "Кравченко", "Литвиненко",
-  "Островский", "Вишневский", "Покровский", "Заболоцкий", "Добровольский",
-  "Черных", "Седых", "Белых", "Ким", "Цой", "Гарипов", "Сафин",
-  "Хабибуллин", "Алиев", "Мамедов", "Арутюнян", "Саркисян", "Гагуа",
+  "Иванов",
+  "Смирнов",
+  "Кузнецов",
+  "Попов",
+  "Васильев",
+  "Петров",
+  "Соколов",
+  "Михайлов",
+  "Новиков",
+  "Фёдоров",
+  "Морозов",
+  "Волков",
+  "Алексеев",
+  "Лебедев",
+  "Семёнов",
+  "Егоров",
+  "Павлов",
+  "Козлов",
+  "Степанов",
+  "Николаев",
+  "Орлов",
+  "Андреев",
+  "Макаров",
+  "Никитин",
+  "Захаров",
+  "Зайцев",
+  "Соловьёв",
+  "Борисов",
+  "Яковлев",
+  "Григорьев",
+  "Романов",
+  "Воробьёв",
+  "Сергеев",
+  "Кузьмин",
+  "Фролов",
+  "Александров",
+  "Дмитриев",
+  "Королёв",
+  "Гусев",
+  "Киселёв",
+  "Ильин",
+  "Максимов",
+  "Поляков",
+  "Сорокин",
+  "Виноградов",
+  "Ковалёв",
+  "Белов",
+  "Медведев",
+  "Антонов",
+  "Тарасов",
+  "Жуков",
+  "Баранов",
+  "Филиппов",
+  "Комаров",
+  "Давыдов",
+  "Беляев",
+  "Герасимов",
+  "Богданов",
+  "Осипов",
+  "Сидоров",
+  "Матвеев",
+  "Титов",
+  "Марков",
+  "Миронов",
+  "Крылов",
+  "Куликов",
+  "Карпов",
+  "Власов",
+  "Мельников",
+  "Денисов",
+  "Гаврилов",
+  "Тихонов",
+  "Казаков",
+  "Афанасьев",
+  "Данилов",
+  "Савельев",
+  "Тимофеев",
+  "Фомин",
+  "Чернов",
+  "Абрамов",
+  "Мартынов",
+  "Ефимов",
+  "Федотов",
+  "Щербаков",
+  "Назаров",
+  "Калинин",
+  "Исаев",
+  "Чернышёв",
+  "Быков",
+  "Маслов",
+  "Родионов",
+  "Коновалов",
+  "Лазарев",
+  "Воронин",
+  "Климов",
+  "Филатов",
+  "Пономарёв",
+  "Голубев",
+  "Кудрявцев",
+  "Прохоров",
+  "Наумов",
+  "Потапов",
+  "Журавлёв",
+  "Овчинников",
+  "Трофимов",
+  "Леонов",
+  "Соболев",
+  "Ермаков",
+  "Колесников",
+  "Гончаров",
+  "Емельянов",
+  "Никифоров",
+  "Грачёв",
+  "Котов",
+  "Гришин",
+  "Ефремов",
+  "Архипов",
+  "Громов",
+  "Кириллов",
+  "Малышев",
+  "Панов",
+  "Моисеев",
+  "Румянцев",
+  "Акимов",
+  "Кондратьев",
+  "Бирюков",
+  "Горбунов",
+  "Анисимов",
+  "Ерёмин",
+  "Тихомиров",
+  "Галкин",
+  "Лукьянов",
+  "Михеев",
+  "Скворцов",
+  "Юдин",
+  "Белоусов",
+  "Нестеров",
+  "Симонов",
+  "Прокофьев",
+  "Харитонов",
+  "Князев",
+  "Цветков",
+  "Левин",
+  "Митрофанов",
+  "Воронцов",
+  "Аксёнов",
+  "Софронов",
+  "Мальцев",
+  "Логинов",
+  "Горшков",
+  "Савин",
+  "Краснов",
+  "Майоров",
+  "Демидов",
+  "Елисеев",
+  "Рыбаков",
+  "Сафонов",
+  "Плотников",
+  "Дёмин",
+  "Хохлов",
+  "Жданов",
+  "Руденко",
+  "Шевчук",
+  "Бондаренко",
+  "Ткаченко",
+  "Кравченко",
+  "Литвиненко",
+  "Островский",
+  "Вишневский",
+  "Покровский",
+  "Заболоцкий",
+  "Добровольский",
+  "Черных",
+  "Седых",
+  "Белых",
+  "Ким",
+  "Цой",
+  "Гарипов",
+  "Сафин",
+  "Хабибуллин",
+  "Алиев",
+  "Мамедов",
+  "Арутюнян",
+  "Саркисян",
+  "Гагуа",
 ] as const;
 
 const DOMAINS = [
-  "gmail.com", "gmail.com", "gmail.com", "yandex.ru", "yandex.ru",
-  "mail.ru", "icloud.com", "outlook.com", "proton.me", "bk.ru",
+  "gmail.com",
+  "gmail.com",
+  "gmail.com",
+  "yandex.ru",
+  "yandex.ru",
+  "mail.ru",
+  "icloud.com",
+  "outlook.com",
+  "proton.me",
+  "bk.ru",
 ] as const;
 
 // Texts use {male|female} placeholders, resolved by the contact's gender
@@ -228,8 +496,9 @@ const NOTES = [
 ] as const;
 
 function inflect(template: string, isFemale: boolean): string {
-  return template.replace(/\{([^|{}]*)\|([^|{}]*)\}/g, (_, male: string, female: string) =>
-    isFemale ? female : male,
+  return template.replace(
+    /\{([^|{}]*)\|([^|{}]*)\}/g,
+    (_, male: string, female: string) => (isFemale ? female : male),
   );
 }
 
@@ -243,10 +512,38 @@ function pickDistinct<T>(items: readonly T[], amount: number): T[] {
 }
 
 const TRANSLIT: Record<string, string> = {
-  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh",
-  з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o",
-  п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "kh", ц: "ts",
-  ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu",
+  а: "a",
+  б: "b",
+  в: "v",
+  г: "g",
+  д: "d",
+  е: "e",
+  ё: "e",
+  ж: "zh",
+  з: "z",
+  и: "i",
+  й: "y",
+  к: "k",
+  л: "l",
+  м: "m",
+  н: "n",
+  о: "o",
+  п: "p",
+  р: "r",
+  с: "s",
+  т: "t",
+  у: "u",
+  ф: "f",
+  х: "kh",
+  ц: "ts",
+  ч: "ch",
+  ш: "sh",
+  щ: "shch",
+  ъ: "",
+  ы: "y",
+  ь: "",
+  э: "e",
+  ю: "yu",
   я: "ya",
 };
 
@@ -272,7 +569,11 @@ function makePhone(usedPhones: Set<string>): string {
   }
 }
 
-function makeEmail(firstName: string, surname: string, usedEmails: Set<string>): string {
+function makeEmail(
+  firstName: string,
+  surname: string,
+  usedEmails: Set<string>,
+): string {
   const first = transliterate(firstName);
   const last = transliterate(surname);
   const variants = [
@@ -299,7 +600,8 @@ function generateContacts(now: number) {
   const usedNames = new Set<string>();
   const usedPhones = new Set<string>();
   const usedEmails = new Set<string>();
-  const result: { contact: NewContact; notes: NewNote[] }[] = [];
+  const result: { contact: NewContact; notes: NewNote[]; groups: string[] }[] =
+    [];
 
   while (result.length < CONTACT_COUNT) {
     const isFemale = chance(0.5);
@@ -311,12 +613,18 @@ function generateContacts(now: number) {
     usedNames.add(name);
 
     // Contacts were added over the last three years
-    const createdAt = new Date(now - randomInt(1, 3 * 365) * DAY_MS - randomInt(0, DAY_MS));
+    const createdAt = new Date(
+      now - randomInt(1, 3 * 365) * DAY_MS - randomInt(0, DAY_MS),
+    );
     const noteCount = pick([0, 0, 1, 1, 1, 2, 2, 3, 4]);
-    const contactNotes: NewNote[] = pickDistinct(NOTES, noteCount).map((body) => ({
-      body: inflect(body, isFemale),
-      createdAt: new Date(createdAt.getTime() + random() * (now - createdAt.getTime())),
-    }));
+    const contactNotes: NewNote[] = pickDistinct(NOTES, noteCount).map(
+      (body) => ({
+        body: inflect(body, isFemale),
+        createdAt: new Date(
+          createdAt.getTime() + random() * (now - createdAt.getTime()),
+        ),
+      }),
+    );
 
     const updatedAt = contactNotes.reduce(
       (latest, note) => (note.createdAt! > latest ? note.createdAt! : latest),
@@ -336,6 +644,7 @@ function generateContacts(now: number) {
         updatedAt,
       },
       notes: contactNotes,
+      groups: pickGroups(),
     });
   }
 
@@ -350,7 +659,9 @@ async function main() {
   const db = drizzle(client);
 
   try {
-    const [{ value: existing }] = await db.select({ value: count() }).from(contacts);
+    const [{ value: existing }] = await db
+      .select({ value: count() })
+      .from(contacts);
     if (existing > 0) {
       console.log(
         `The contacts table already has ${existing} rows, seeding skipped to avoid duplicates.`,
@@ -361,7 +672,17 @@ async function main() {
     const generated = generateContacts(Date.now());
     let noteTotal = 0;
 
+    let membershipTotal = 0;
+
     await db.transaction(async (tx) => {
+      const insertedGroups = await tx
+        .insert(groups)
+        .values(GROUP_NAMES.map((name) => ({ name })))
+        .returning({ id: groups.id, name: groups.name });
+      const groupIds = new Map(
+        insertedGroups.map((group) => [group.name, group.id]),
+      );
+
       for (let start = 0; start < generated.length; start += BATCH_SIZE) {
         const batch = generated.slice(start, start + BATCH_SIZE);
         const inserted = await tx
@@ -370,16 +691,32 @@ async function main() {
           .returning({ id: contacts.id });
 
         const batchNotes = batch.flatMap((item, index) =>
-          item.notes.map((note) => ({ ...note, contactId: inserted[index].id })),
+          item.notes.map((note) => ({
+            ...note,
+            contactId: inserted[index].id,
+          })),
         );
         if (batchNotes.length > 0) {
           await tx.insert(notes).values(batchNotes);
           noteTotal += batchNotes.length;
         }
+
+        const batchMemberships = batch.flatMap((item, index) =>
+          item.groups.map((name) => ({
+            contactId: inserted[index].id,
+            groupId: groupIds.get(name)!,
+          })),
+        );
+        if (batchMemberships.length > 0) {
+          await tx.insert(contactGroups).values(batchMemberships);
+          membershipTotal += batchMemberships.length;
+        }
       }
     });
 
-    console.log(`Seeded ${generated.length} contacts and ${noteTotal} notes.`);
+    console.log(
+      `Seeded ${generated.length} contacts, ${noteTotal} notes and ${GROUP_NAMES.length} groups with ${membershipTotal} memberships.`,
+    );
   } finally {
     await client.end();
   }

@@ -64,7 +64,8 @@
     outline: 2px solid var(--ring);
     outline-offset: 3px;
   }
-  button:not(:disabled), [role="button"]:not(:disabled) {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
     cursor: pointer;
   }
 }

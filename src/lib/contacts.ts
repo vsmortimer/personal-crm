@@ -1,12 +1,14 @@
 import "server-only";
 
-import { count, desc, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { connection } from "next/server";
 import { cache } from "react";
 
 import { db } from "@/db";
 import { contacts, notes } from "@/db/schema";
 import type { ContactFrequency } from "@/lib/contact-frequency";
+import { setContactGroups } from "@/lib/groups";
+import type { ContactGroupsInput } from "@/lib/validation";
 
 export type ContactInput = {
   name: string;
@@ -33,7 +35,30 @@ const surname = sql`regexp_replace(${contacts.name}, '^.*[[:space:]]', '')`;
 // The list shows the surname first: "Иван Иванович Петров" -> "Петров Иван Иванович"
 const listName = sql<string>`regexp_replace(${contacts.name}, '^(.*[^[:space:]])[[:space:]]+([^[:space:]]+)$', '\\2 \\1')`;
 
-export async function listContacts(query: string) {
+// Written with explicit table names: drizzle leaves columns unqualified in a
+// single-table query, and inside these subqueries "id" would mean groups.id
+
+// Names of the contact's groups, alphabetical
+const contactGroupNames = sql<string[]>`array(
+  select g.name from contact_groups cg
+  join groups g on g.id = cg.group_id
+  where cg.contact_id = contacts.id
+  order by g.name collate "ru-x-icu", g.id
+)`;
+
+function inGroup(groupId: number) {
+  return sql`exists (
+    select 1 from contact_groups cg
+    where cg.contact_id = contacts.id and cg.group_id = ${groupId}
+  )`;
+}
+
+// With a group, both the list and the total are within that group:
+// "Найдено: 2 из 5" where 5 is how many people are in the group
+export async function listContacts(
+  query: string,
+  groupId: number | null = null,
+) {
   // Contacts must be read fresh on every request, never prerendered
   await connection();
 
@@ -47,6 +72,8 @@ export async function listContacts(query: string) {
       )
     : undefined;
 
+  const groupFilter = groupId ? inGroup(groupId) : undefined;
+
   const [rows, [{ total }]] = await Promise.all([
     db
       .select({
@@ -56,16 +83,17 @@ export async function listContacts(query: string) {
         about: contacts.about,
         phone: contacts.phone,
         email: contacts.email,
+        groups: contactGroupNames.as("groups"),
       })
       .from(contacts)
-      .where(nameFilter)
+      .where(and(nameFilter, groupFilter))
       // By surname, then by the rest of the name within one surname
       .orderBy(
         sql`${surname} collate "ru-x-icu"`,
         sql`${listName} collate "ru-x-icu"`,
         contacts.id,
       ),
-    db.select({ total: count() }).from(contacts),
+    db.select({ total: count() }).from(contacts).where(groupFilter),
   ]);
 
   return { contacts: rows, total };
@@ -85,7 +113,10 @@ const FREQUENCY_INTERVALS: Record<ContactFrequency, string> = {
 
 const frequencyInterval = sql`case ${contacts.contactFrequency} ${sql.raw(
   Object.entries(FREQUENCY_INTERVALS)
-    .map(([frequency, interval]) => `when '${frequency}' then interval '${interval}'`)
+    .map(
+      ([frequency, interval]) =>
+        `when '${frequency}' then interval '${interval}'`,
+    )
     .join(" "),
 )} end`;
 
@@ -99,30 +130,34 @@ const dueAt = sql`${lastContactAt} + ${frequencyInterval}`;
 export async function listDueContacts() {
   await connection();
 
-  return db
-    .select({
-      id: contacts.id,
-      listName: listName.as("list_name"),
-      contactFrequency: sql<ContactFrequency>`${contacts.contactFrequency}`.as(
-        "contact_frequency",
-      ),
-      // Whole days, against the same now() as the filter below
-      daysSinceContact: sql<number>`floor(extract(epoch from now() - ${lastContactAt}) / 86400)::int`.as(
-        "days_since_contact",
-      ),
-    })
-    .from(contacts)
-    .leftJoin(notes, eq(notes.contactId, contacts.id))
-    .where(isNotNull(contacts.contactFrequency))
-    .groupBy(contacts.id)
-    .having(sql`${dueAt} < now()`)
-    // The longest overdue first, then in the same order as the contact list
-    .orderBy(
-      dueAt,
-      sql`${surname} collate "ru-x-icu"`,
-      sql`${listName} collate "ru-x-icu"`,
-      contacts.id,
-    );
+  return (
+    db
+      .select({
+        id: contacts.id,
+        listName: listName.as("list_name"),
+        contactFrequency:
+          sql<ContactFrequency>`${contacts.contactFrequency}`.as(
+            "contact_frequency",
+          ),
+        // Whole days, against the same now() as the filter below
+        daysSinceContact:
+          sql<number>`floor(extract(epoch from now() - ${lastContactAt}) / 86400)::int`.as(
+            "days_since_contact",
+          ),
+      })
+      .from(contacts)
+      .leftJoin(notes, eq(notes.contactId, contacts.id))
+      .where(isNotNull(contacts.contactFrequency))
+      .groupBy(contacts.id)
+      .having(sql`${dueAt} < now()`)
+      // The longest overdue first, then in the same order as the contact list
+      .orderBy(
+        dueAt,
+        sql`${surname} collate "ru-x-icu"`,
+        sql`${listName} collate "ru-x-icu"`,
+        contacts.id,
+      )
+  );
 }
 
 export type DueContact = Awaited<ReturnType<typeof listDueContacts>>[number];
@@ -159,21 +194,37 @@ export async function countNotes(contactId: number) {
   return total;
 }
 
-export async function createContact(input: ContactInput) {
-  const [created] = await db
-    .insert(contacts)
-    .values(input)
-    .returning({ id: contacts.id });
-  return created.id;
+// The contact and its groups are saved together or not at all
+export async function createContact(
+  input: ContactInput,
+  groupsInput: ContactGroupsInput,
+) {
+  return db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(contacts)
+      .values(input)
+      .returning({ id: contacts.id });
+    await setContactGroups(tx, created.id, groupsInput);
+    return created.id;
+  });
 }
 
-export async function updateContact(id: number, input: ContactInput) {
-  const updated = await db
-    .update(contacts)
-    .set(input)
-    .where(eq(contacts.id, id))
-    .returning({ id: contacts.id });
-  return updated.length > 0;
+export async function updateContact(
+  id: number,
+  input: ContactInput,
+  groupsInput: ContactGroupsInput,
+) {
+  return db.transaction(async (tx) => {
+    const updated = await tx
+      .update(contacts)
+      .set(input)
+      .where(eq(contacts.id, id))
+      .returning({ id: contacts.id });
+    if (updated.length === 0) return false;
+
+    await setContactGroups(tx, id, groupsInput);
+    return true;
+  });
 }
 
 // Returns the deleted contact's name, or null if it was already gone.

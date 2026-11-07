@@ -22,7 +22,8 @@ export const metadata: Metadata = {
     template: "%s · Личная CRM",
     default: "Личная CRM",
   },
-  description: "Контакты людей, которых знаю лично, и заметки о разговорах с ними",
+  description:
+    "Контакты людей, которых знаю лично, и заметки о разговорах с ними",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

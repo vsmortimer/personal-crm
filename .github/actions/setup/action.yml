@@ -1,0 +1,20 @@
+# Shared first steps of the CI jobs: pnpm, Node.js and the project's dependencies.
+# The repository must be checked out before this action runs.
+name: Set up the project
+description: Install pnpm, Node.js and the dependencies from pnpm-lock.yaml
+
+runs:
+  using: composite
+  steps:
+    # The pnpm version comes from "packageManager" in package.json
+    - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        # The same major version as the image, see Dockerfile
+        node-version: 24
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
