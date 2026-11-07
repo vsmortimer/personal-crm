@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { countNotes, getContact } from "@/lib/contacts";
 import { listContactGroups, listGroups } from "@/lib/groups";
 import { parseContactId } from "@/lib/format";
+import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Изменить контакт",
@@ -33,11 +34,12 @@ async function EditContact({ rawId }: { rawId: string }) {
   const id = parseContactId(rawId);
   if (!id) notFound();
 
+  const user = await requireUser();
   const [contact, notesCount, groups, contactGroups] = await Promise.all([
-    getContact(id),
-    countNotes(id),
-    listGroups(),
-    listContactGroups(id),
+    getContact(user.id, id),
+    countNotes(user.id, id),
+    listGroups(user.id),
+    listContactGroups(user.id, id),
   ]);
   if (!contact) notFound();
 

@@ -3,7 +3,8 @@
 // add a note → the note is kept on the contact's card, in another browser too.
 import { expect, test, type Page } from "@playwright/test";
 
-import { resetDatabase } from "./database";
+import { OWNER_EMAIL, resetDatabase } from "./database";
+import { signIn } from "./sign-in";
 
 const EXISTING_CONTACTS = ["Анна Смирнова", "Борис Петров", "Вера Иванова"];
 const NEW_CONTACT = "Дмитрий Орлов";
@@ -38,8 +39,8 @@ test("add a contact, find it by name and add a note that is kept", async ({
   browser,
   baseURL,
 }) => {
-  await test.step("open the app: all contacts are listed", async () => {
-    await page.goto("/");
+  await test.step("sign in and open the app: all contacts are listed", async () => {
+    await signIn(page, OWNER_EMAIL);
 
     await expect(page.getByText("Всего 3 контакта")).toBeVisible();
     await expect(contactRows(page)).toHaveText(ROWS_BEFORE);
@@ -103,7 +104,8 @@ test("add a contact, find it by name and add a note that is kept", async ({
     try {
       const other = await otherBrowser.newPage();
 
-      await other.goto("/");
+      // Signs in as the same person: the data lives on the server
+      await signIn(other, OWNER_EMAIL);
       await expect(other.getByText("Всего 4 контакта")).toBeVisible();
       await expect(contactRows(other)).toHaveText(ROWS_AFTER);
 

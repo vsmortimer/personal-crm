@@ -84,7 +84,11 @@ deploy() {
     step "Done: $tag is live"
 }
 
-# Migrations stay applied: the previous version must keep working with the newer schema
+# Migrations stay applied: the previous version must keep working with the newer schema.
+# That is not so for the deploy of the sign-in (migrations 0003 and 0004): the previous version
+# does not know `user_id`, which is NOT NULL now, so it cannot add a contact. After that deploy,
+# roll back only together with the database: first this command, then restore.sh with the backup
+# made before that deploy. The steps are in README.md, "Откат выкатки входа".
 rollback() {
     local tag=${1:-$(read_tag "$PREVIOUS_FILE")}
     [ -n "$tag" ] || fail "no previous version recorded: pass a commit"

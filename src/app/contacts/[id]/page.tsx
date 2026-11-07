@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CONTACT_FREQUENCY_LABELS } from "@/lib/contact-frequency";
 import { listContactGroups } from "@/lib/groups";
 import { getContact, listNotes } from "@/lib/contacts";
+import { getCurrentUser, requireUser } from "@/lib/session";
 import {
   formatDateTime,
   groupNamesLine,
@@ -26,7 +27,8 @@ export async function generateMetadata({
   params,
 }: PageProps<"/contacts/[id]">): Promise<Metadata> {
   const id = parseContactId((await params).id);
-  const contact = id ? await getContact(id) : null;
+  const user = await getCurrentUser();
+  const contact = id && user ? await getContact(user.id, id) : null;
   return { title: contact?.name ?? "Контакт не найден" };
 }
 
@@ -47,10 +49,11 @@ async function ContactDetails({ rawId }: { rawId: string }) {
   const id = parseContactId(rawId);
   if (!id) notFound();
 
+  const user = await requireUser();
   const [contact, notes, groups] = await Promise.all([
-    getContact(id),
-    listNotes(id),
-    listContactGroups(id),
+    getContact(user.id, id),
+    listNotes(user.id, id),
+    listContactGroups(user.id, id),
   ]);
   if (!contact) notFound();
 

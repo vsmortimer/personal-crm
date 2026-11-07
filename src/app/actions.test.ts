@@ -1,10 +1,22 @@
 // The contact form's server action, on a save that fails the checks
-import { expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { createContactAction } from "@/app/actions";
 import { db } from "@/db";
 import { contacts } from "@/db/schema";
 import { emptyContactValues, type ContactFormState } from "@/lib/validation";
+import { insertUser } from "../../test/helpers";
+
+// Vitest has no request with a cookie, so the signed-in person is set here.
+// Nothing else is replaced: the actions work with the real database.
+const signedIn = vi.hoisted(() => ({ id: "" }));
+vi.mock("@/lib/session", () => ({
+  requireUser: async () => ({ id: signedIn.id }),
+}));
+
+beforeEach(async () => {
+  signedIn.id = await insertUser("owner@mail.ru");
+});
 
 const initialState: ContactFormState = {
   values: emptyContactValues,

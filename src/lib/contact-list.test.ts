@@ -1,29 +1,41 @@
 // The home page list with groups: group names in rows, the group filter
 // (?group=<id>) and the search inside a group
 import { sql } from "drizzle-orm";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, beforeEach } from "vitest";
 
 import { db } from "@/db";
 import { contacts } from "@/db/schema";
 import { listContacts, listDueContacts } from "@/lib/contacts";
 import { listGroups, selectedGroup } from "@/lib/groups";
-import { addToGroup, insertContact, insertGroup } from "../../test/helpers";
+import {
+  addToGroup,
+  insertContact,
+  insertGroup,
+  insertUser,
+} from "../../test/helpers";
+
+// The person whose contacts and groups the tests work with
+let owner: string;
+
+beforeEach(async () => {
+  owner = await insertUser("owner@mail.ru");
+});
 
 async function listNames(query: string, groupId: number | null = null) {
-  const { contacts } = await listContacts(query, groupId);
+  const { contacts } = await listContacts(owner, query, groupId);
   return contacts.map((contact) => contact.listName);
 }
 
 describe("groups in the list rows", () => {
   // Scenario: «Контакт в двух группах»
   test("a row has the contact's groups in alphabetical order", async () => {
-    const tennis = await insertGroup("Теннис");
-    const friends = await insertGroup("Друзья");
-    const ivan = await insertContact("Иван Петров");
+    const tennis = await insertGroup(owner, "Теннис");
+    const friends = await insertGroup(owner, "Друзья");
+    const ivan = await insertContact(owner, "Иван Петров");
     await addToGroup(ivan, tennis);
     await addToGroup(ivan, friends);
 
-    const { contacts } = await listContacts("");
+    const { contacts } = await listContacts(owner, "");
 
     expect(contacts).toEqual([
       expect.objectContaining({
@@ -35,10 +47,10 @@ describe("groups in the list rows", () => {
 
   // Scenario: «Контакт без групп»
   test("a contact without groups has none in its row", async () => {
-    await insertGroup("Теннис");
-    await insertContact("Анна Смирнова");
+    await insertGroup(owner, "Теннис");
+    await insertContact(owner, "Анна Смирнова");
 
-    const { contacts } = await listContacts("");
+    const { contacts } = await listContacts(owner, "");
 
     expect(contacts).toEqual([expect.objectContaining({ groups: [] })]);
   });
@@ -48,13 +60,13 @@ describe("the group filter", () => {
   // Анна Смирнова and Иван Петров play tennis, Иван is also a friend,
   // Мама is family, Олег Сидоров is in no group
   async function people() {
-    const tennis = await insertGroup("Теннис");
-    const friends = await insertGroup("Друзья");
-    const family = await insertGroup("Семья");
-    const anna = await insertContact("Анна Смирнова");
-    const ivan = await insertContact("Иван Петров");
-    const mom = await insertContact("Мама");
-    await insertContact("Олег Сидоров");
+    const tennis = await insertGroup(owner, "Теннис");
+    const friends = await insertGroup(owner, "Друзья");
+    const family = await insertGroup(owner, "Семья");
+    const anna = await insertContact(owner, "Анна Смирнова");
+    const ivan = await insertContact(owner, "Иван Петров");
+    const mom = await insertContact(owner, "Мама");
+    await insertContact(owner, "Олег Сидоров");
     await addToGroup(anna, tennis);
     await addToGroup(ivan, tennis);
     await addToGroup(ivan, friends);
@@ -102,14 +114,14 @@ describe("the group filter", () => {
   test("the total without a group counts everyone", async () => {
     await people();
 
-    expect((await listContacts("", null)).total).toBe(4);
+    expect((await listContacts(owner, "", null)).total).toBe(4);
   });
 });
 
 describe("search inside a group", () => {
   // «Теннис» has 5 people, two of them Анна; one more Анна is not in it
   async function tennisClub() {
-    const tennis = await insertGroup("Теннис");
+    const tennis = await insertGroup(owner, "Теннис");
     for (const name of [
       "Анна Смирнова",
       "Анна Белова",
@@ -117,9 +129,9 @@ describe("search inside a group", () => {
       "Олег Сидоров",
       "Пётр Котов",
     ]) {
-      await addToGroup(await insertContact(name), tennis);
+      await addToGroup(await insertContact(owner, name), tennis);
     }
-    await insertContact("Анна Ким");
+    await insertContact(owner, "Анна Ким");
     return tennis;
   }
 
@@ -127,7 +139,7 @@ describe("search inside a group", () => {
   test("finds only the group's contacts and counts from the group", async () => {
     const tennis = await tennisClub();
 
-    const { contacts, total } = await listContacts("Анна", tennis);
+    const { contacts, total } = await listContacts(owner, "Анна", tennis);
 
     expect(contacts.map((contact) => contact.listName)).toEqual([
       "Белова Анна",
@@ -141,7 +153,7 @@ describe("search inside a group", () => {
   test("nothing found in a group that has people", async () => {
     const tennis = await tennisClub();
 
-    const { contacts, total } = await listContacts("Ким", tennis);
+    const { contacts, total } = await listContacts(owner, "Ким", tennis);
 
     expect(contacts).toEqual([]);
     expect(total).toBe(5);
@@ -151,8 +163,8 @@ describe("search inside a group", () => {
 describe("the selected group above the list", () => {
   // Scenarios: «Группа с людьми», «Пустая группа»
   test("the number of people: 5 in a full group, 0 in an empty one", async () => {
-    const tennis = await insertGroup("Теннис");
-    const analysts = await insertGroup("Аналитики");
+    const tennis = await insertGroup(owner, "Теннис");
+    const analysts = await insertGroup(owner, "Аналитики");
     for (const name of [
       "Анна Смирнова",
       "Иван Петров",
@@ -160,14 +172,14 @@ describe("the selected group above the list", () => {
       "Пётр Котов",
       "Мама",
     ]) {
-      await addToGroup(await insertContact(name), tennis);
+      await addToGroup(await insertContact(owner, name), tennis);
     }
 
-    expect(await listGroups()).toEqual([
+    expect(await listGroups(owner)).toEqual([
       { id: analysts, name: "Аналитики", contactCount: 0 },
       { id: tennis, name: "Теннис", contactCount: 5 },
     ]);
-    expect(await listContacts("", analysts)).toEqual({
+    expect(await listContacts(owner, "", analysts)).toEqual({
       contacts: [],
       total: 0,
     });
@@ -199,14 +211,15 @@ describe("selectedGroup", () => {
 
 // Scenario: «Выбрал группу при непустом блоке»
 test("«Пора связаться» doesn't depend on the selected group", async () => {
-  const tennis = await insertGroup("Теннис");
-  const friends = await insertGroup("Друзья");
-  const anna = await insertContact("Анна Смирнова");
+  const tennis = await insertGroup(owner, "Теннис");
+  const friends = await insertGroup(owner, "Друзья");
+  const anna = await insertContact(owner, "Анна Смирнова");
   await addToGroup(anna, tennis);
   // Иван is a friend, due for a weekly catch-up for a month
   const [ivan] = await db
     .insert(contacts)
     .values({
+      userId: owner,
       name: "Иван Петров",
       contactFrequency: "week",
       createdAt: sql`now() - interval '30 days'`,
@@ -215,12 +228,12 @@ test("«Пора связаться» doesn't depend on the selected group", asy
   await addToGroup(ivan.id, friends);
 
   // The home page with «Теннис» selected
-  expect(selectedGroup(await listGroups(), String(tennis))?.name).toBe(
+  expect(selectedGroup(await listGroups(owner), String(tennis))?.name).toBe(
     "Теннис",
   );
   expect(await listNames("", tennis)).toEqual(["Смирнова Анна"]);
 
-  expect((await listDueContacts()).map((contact) => contact.listName)).toEqual([
-    "Петров Иван",
-  ]);
+  expect(
+    (await listDueContacts(owner)).map((contact) => contact.listName),
+  ).toEqual(["Петров Иван"]);
 });

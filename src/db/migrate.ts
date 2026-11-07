@@ -5,14 +5,12 @@ import { readFileSync } from "node:fs";
 import { loadEnvConfig } from "@next/env";
 import { sql } from "drizzle-orm";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 
+import { MIGRATIONS_FOLDER, applyMigrations } from "./apply-migrations";
 import { getDatabaseUrl } from "./connection-url";
 
 loadEnvConfig(process.cwd());
-
-const MIGRATIONS_FOLDER = "./drizzle";
 
 type JournalEntry = { tag: string; when: number };
 
@@ -44,7 +42,8 @@ async function main() {
     const journal = readJournal();
     const before = await appliedTimestamps(db);
 
-    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+    // OWNER_EMAIL: whose the contacts that were here before the sign-in are
+    await applyMigrations(client, { ownerEmail: process.env.OWNER_EMAIL });
 
     const after = await appliedTimestamps(db);
     const tags = (filter: (entry: JournalEntry) => boolean) =>
@@ -72,7 +71,18 @@ async function main() {
   }
 }
 
+// The query error that stopped the migration, e.g. "OWNER_EMAIL is not set: ...".
+// Drizzle wraps it and the full error is long, so the reason is also said alone
+function rootMessage(error: unknown): string {
+  let deepest = error;
+  while ((deepest as Error | undefined)?.cause) {
+    deepest = (deepest as Error).cause;
+  }
+  return deepest instanceof Error ? deepest.message : String(deepest);
+}
+
 main().catch((error) => {
   console.error("Migration failed:", error);
+  console.error(`Migration failed: ${rootMessage(error)}`);
   process.exit(1);
 });

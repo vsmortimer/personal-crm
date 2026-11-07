@@ -7,6 +7,7 @@ import { ContactForm } from "@/components/contact-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listGroups } from "@/lib/groups";
+import { requireUser } from "@/lib/session";
 import { emptyContactValues } from "@/lib/validation";
 
 export const metadata: Metadata = {
@@ -37,7 +38,8 @@ export default function NewContactPage() {
 }
 
 async function NewContactForm() {
-  const groups = await listGroups();
+  const user = await requireUser();
+  const groups = await listGroups(user.id);
 
   return (
     <ContactForm

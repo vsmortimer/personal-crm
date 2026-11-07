@@ -1,9 +1,14 @@
 import { db } from "@/db";
 import { postgresErrorCode } from "@/db/errors";
-import { contactGroups, contacts, groups, notes } from "@/db/schema";
+import { contactGroups, contacts, groups, notes, users } from "@/db/schema";
 import type { ContactFrequency } from "@/lib/contact-frequency";
 
-export { CHECK_VIOLATION, UNIQUE_VIOLATION } from "@/db/errors";
+export {
+  CHECK_VIOLATION,
+  FOREIGN_KEY_VIOLATION,
+  NOT_NULL_VIOLATION,
+  UNIQUE_VIOLATION,
+} from "@/db/errors";
 
 // Postgres error code of a query that must fail
 export async function failureCode(query: Promise<unknown>): Promise<string> {
@@ -17,8 +22,19 @@ export async function failureCode(query: Promise<unknown>): Promise<string> {
   throw new Error("Expected the query to fail, but it succeeded");
 }
 
+// A person who signed in, the owner of contacts and groups. Returns the id.
+// The id is made from the address, so it is easy to tell who is who in a failure
+export async function insertUser(email: string) {
+  const [user] = await db
+    .insert(users)
+    .values({ id: `user-${email}`, name: "", email, emailVerified: true })
+    .returning({ id: users.id });
+  return user.id;
+}
+
 // Without the options: no contact frequency, added just now
 export async function insertContact(
+  userId: string,
   name: string,
   {
     contactFrequency = null,
@@ -27,7 +43,7 @@ export async function insertContact(
 ) {
   const [contact] = await db
     .insert(contacts)
-    .values({ name, contactFrequency, createdAt })
+    .values({ userId, name, contactFrequency, createdAt })
     .returning({ id: contacts.id });
   return contact.id;
 }
@@ -41,10 +57,10 @@ export async function insertNote(
   await db.insert(notes).values({ contactId, body, createdAt });
 }
 
-export async function insertGroup(name: string) {
+export async function insertGroup(userId: string, name: string) {
   const [group] = await db
     .insert(groups)
-    .values({ name })
+    .values({ userId, name })
     .returning({ id: groups.id });
   return group.id;
 }
