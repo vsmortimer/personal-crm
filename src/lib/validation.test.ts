@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 
-import { groupNameSchema, parseContactGroups } from "@/lib/validation";
+import { CONTACT_FREQUENCIES } from "@/lib/contact-frequency";
+import {
+  contactSchema,
+  emptyContactValues,
+  groupNameSchema,
+  parseContactGroups,
+} from "@/lib/validation";
 
 function errorOf(input: string) {
   const parsed = groupNameSchema.safeParse(input);
@@ -98,5 +104,36 @@ describe("parseContactGroups", () => {
     ]);
 
     expect(parseContactGroups(sent).newGroups).toEqual(["Теннис"]);
+  });
+});
+
+describe("contactSchema: «Как часто общаться»", () => {
+  const anna = { ...emptyContactValues, name: "Анна Смирнова" };
+
+  // Scenario: «Новый контакт без частоты»: the untouched field sends ""
+  test("an untouched field means no frequency", () => {
+    expect(contactSchema.parse(anna).contactFrequency).toBeNull();
+  });
+
+  test.each(CONTACT_FREQUENCIES)("%s is kept", (frequency) => {
+    expect(
+      contactSchema.parse({ ...anna, contactFrequency: frequency })
+        .contactFrequency,
+    ).toBe(frequency);
+  });
+
+  // Only a forged request can send a value that is not in the list
+  test("a value off the list asks to choose from the list", () => {
+    const parsed = contactSchema.safeParse({
+      ...anna,
+      contactFrequency: "daily",
+    });
+
+    expect(parsed.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["contactFrequency"],
+        message: "Выберите вариант из списка",
+      }),
+    ]);
   });
 });

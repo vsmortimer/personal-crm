@@ -14,6 +14,9 @@ import { getDatabaseUrl } from "../src/db/connection-url";
 export const TEST_DATABASE_SUFFIX = "_test";
 // Playwright (pnpm test:e2e)
 export const E2E_DATABASE_SUFFIX = "_e2e_test";
+// The migration test in Vitest: a database of its own, made from older
+// migrations, next to the Vitest one
+export const MIGRATION_DATABASE_SUFFIX = "_migration_test";
 
 // The last line of defence before anything is dropped or truncated
 export function assertTestDatabase(name: string) {
@@ -56,8 +59,12 @@ async function dropDatabase(admin: postgres.Sql, name: string) {
 }
 
 // Creates the test database from scratch and applies the migrations from
-// ./drizzle to it. `drop` removes it when the run is over.
-export async function createTestDatabase(suffix: string) {
+// ./drizzle to it, or from another folder, e.g. one with only the first
+// migrations. `drop` removes it when the run is over.
+export async function createTestDatabase(
+  suffix: string,
+  { migrationsFolder = "./drizzle" }: { migrationsFolder?: string } = {},
+) {
   const appUrl = appDatabaseUrl();
   const url = testDatabaseUrl(suffix);
   const name = databaseName(new URL(url));
@@ -69,7 +76,7 @@ export async function createTestDatabase(suffix: string) {
 
     const client = connect(url);
     try {
-      await migrate(drizzle(client), { migrationsFolder: "./drizzle" });
+      await migrate(drizzle(client), { migrationsFolder });
     } finally {
       await client.end();
     }
