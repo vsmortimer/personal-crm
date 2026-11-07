@@ -5,44 +5,20 @@
 #   deploy.sh deploy <commit> <registry user>   deploy ghcr.io/vsmortimer/personal-crm:<commit>;
 #                                               the registry token comes on stdin
 #   deploy.sh rollback [<commit>]               start the previous version again (by hand only)
-#   deploy.sh status                            show the containers and the running version
+#   deploy.sh status                            show the containers, the running version, backups
 #   deploy.sh seed                              fill an empty database with test data
 #
-# A deploy pulls the image, applies migrations in a one-off container from it, starts it and
-# smoke-tests /health. A failed step stops the deploy, and nothing is rolled back automatically:
-# a person looks at the failure and decides whether to run `rollback`.
+# A deploy backs up the database, pulls the image, applies migrations in a one-off container
+# from it, starts it and smoke-tests /health. A failed step stops the deploy, and nothing is
+# rolled back automatically: a person looks at the failure and decides whether to run `rollback`.
+# Restoring a backup is restore.sh, also by hand only.
 set -Eeuo pipefail
 
-APP_DIR=/srv/prod
-IMAGE=ghcr.io/vsmortimer/personal-crm
+# shellcheck source=lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_deploy_user "$@"
+
 IMAGE_SOURCE=https://github.com/vsmortimer/personal-crm
-HEALTH_URL=http://127.0.0.1:3000/health
-WAIT_SECONDS=120
-# The version that last passed the smoke test, and the one live before the last deploy
-LIVE_FILE=$APP_DIR/live-tag
-PREVIOUS_FILE=$APP_DIR/previous-tag
-
-step() { printf '\n=== %s\n' "$*"; }
-fail() { echo "ERROR: $*" >&2; exit 1; }
-
-[ "$(id -un)" = crmdeploy ] || fail "run as crmdeploy: sudo -u crmdeploy bash $0 $*"
-cd "$APP_DIR"
-[ -s .env ] || fail "$APP_DIR/.env is empty: put the database settings there first"
-
-# One deploy or rollback at a time
-lock() {
-    exec 9>"$APP_DIR/deploy.lock"
-    flock -w 900 9 || fail "another deploy is still running"
-}
-
-# compose.yaml needs a tag even for commands that only touch the database
-compose() {
-    APP_TAG=$1 docker compose -p prod --env-file "$APP_DIR/.env" -f "$APP_DIR/deploy/compose.yaml" "${@:2}" </dev/null
-}
-
-read_tag() { cat "$1" 2>/dev/null || true; }
-
-check_tag() { [[ $1 =~ ^[0-9a-f]{40}$ ]] || fail "not a full commit hash: '$1'"; }
 
 # The token is the GitHub Actions job's own: it expires with the job and is never saved here
 pull_image() {
@@ -52,23 +28,6 @@ pull_image() {
         docker --config "$config" pull -q "$IMAGE:$tag"; } || status=$?
     rm -rf "$config"
     return "$status"
-}
-
-health_matches() {
-    local body
-    body=$(curl -fsS -m 10 "$HEALTH_URL") || { echo "health: no answer"; return 1; }
-    echo "health: $body"
-    [[ $body == *"\"commit\":\"$1\""* ]]
-}
-
-# Starts the given version and smoke-tests it
-start_app() {
-    if compose "$1" up -d --wait --wait-timeout "$WAIT_SECONDS" app && health_matches "$1"; then
-        return 0
-    fi
-    echo "Version $1 did not pass the smoke test. Its last log lines:"
-    compose "$1" logs --tail 80 app || true
-    return 1
 }
 
 # Removes images of other versions, keeping the ones passed as arguments
@@ -93,11 +52,18 @@ deploy() {
     echo "new version: $tag"
     echo "live now:    ${live:-nothing}"
 
+    step "Backup of the database"
+    compose "$tag" up -d --wait --wait-timeout "$WAIT_SECONDS" db
+    if [ -n "$live" ]; then
+        # Named after the version live now: its data, before the new version's migrations
+        backup_db "$live" || fail "backup failed: nothing changed, $live keeps running"
+        prune_backups
+    else
+        echo "nothing is live yet: no data to back up"
+    fi
+
     step "Pulling $IMAGE:$tag"
     pull_image "$tag" "$user" "$token"
-
-    step "Starting the database"
-    compose "$tag" up -d --wait --wait-timeout "$WAIT_SECONDS" db
 
     step "Applying migrations in a one-off container"
     compose "$tag" run --rm -T app node db-scripts/migrate.cjs ||
@@ -141,6 +107,7 @@ status() {
     docker image ls "$IMAGE"
     curl -sS -m 10 "$HEALTH_URL" || true
     echo
+    list_backups
 }
 
 seed() {
