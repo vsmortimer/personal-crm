@@ -40,9 +40,26 @@ export function initials(name: string): string {
     .join("");
 }
 
-// Contact ids in URLs are positive 32-bit integers
-export function parseContactId(raw: string): number | null {
+// Contact and group ids in URLs and forms are positive 32-bit integers
+function parseId(raw: string): number | null {
   if (!/^\d{1,10}$/.test(raw)) return null;
   const id = Number(raw);
   return id > 0 && id <= 2_147_483_647 ? id : null;
+}
+
+export const parseContactId = parseId;
+export const parseGroupId = parseId;
+
+// groupNamesLine(["Друзья", "Теннис"]) -> "Друзья · Теннис"
+export function groupNamesLine(names: string[]): string {
+  return names.join(" · ");
+}
+
+// The home page address with the search and the group from the filter
+export function homeHref(query: string, groupId: number | null): string {
+  const params = new URLSearchParams();
+  if (groupId) params.set("group", String(groupId));
+  if (query) params.set("q", query);
+  const search = params.toString();
+  return search ? `/?${search}` : "/";
 }

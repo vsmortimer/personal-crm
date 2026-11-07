@@ -11,20 +11,26 @@ import {
   updateContact,
   type ContactInput,
 } from "@/lib/contacts";
+import { deleteGroup, renameGroup } from "@/lib/groups";
 import {
   CONTACT_FIELDS,
   contactSchema,
   noteSchema,
+  parseContactGroups,
   type ContactField,
+  type ContactGroupsInput,
   type ContactFormState,
   type ContactFormValues,
   type DeleteContactState,
+  type DeleteGroupState,
   type NoteFormState,
+  type RenameGroupState,
 } from "@/lib/validation";
 
 const SAVE_FAILED = "Не удалось сохранить. Попробуйте ещё раз.";
 const DELETE_FAILED = "Не удалось удалить. Попробуйте ещё раз.";
 const CONTACT_MISSING = "Контакт не найден: возможно, его уже нет в базе.";
+const GROUP_MISSING = "Группа не найдена: возможно, её уже нет в базе.";
 
 function readContactValues(formData: FormData): ContactFormValues {
   return Object.fromEntries(
@@ -45,7 +51,9 @@ function firstErrors(error: z.ZodError): ContactFormState["errors"] {
 function parseContact(
   prevState: ContactFormState,
   formData: FormData,
-): { ok: true; data: ContactInput } | { ok: false; state: ContactFormState } {
+):
+  | { ok: true; data: ContactInput; groups: ContactGroupsInput }
+  | { ok: false; state: ContactFormState } {
   const values = readContactValues(formData);
   const parsed = contactSchema.safeParse(values);
   if (!parsed.success) {
@@ -54,7 +62,7 @@ function parseContact(
       state: failedState(prevState, formData, { errors: firstErrors(parsed.error) }),
     };
   }
-  return { ok: true, data: parsed.data };
+  return { ok: true, data: parsed.data, groups: parseContactGroups(formData) };
 }
 
 function failedState(
@@ -64,6 +72,8 @@ function failedState(
 ): ContactFormState {
   return {
     values: readContactValues(formData),
+    // The checked groups and the typed new ones go back into the form too
+    ...parseContactGroups(formData),
     errors,
     message,
     version: prevState.version + 1,
@@ -79,7 +89,7 @@ export async function createContactAction(
 
   let id: number;
   try {
-    id = await createContact(parsed.data);
+    id = await createContact(parsed.data, parsed.groups);
   } catch (error) {
     console.error("Failed to create contact", error);
     return failedState(prevState, formData, { message: SAVE_FAILED });
@@ -99,7 +109,7 @@ export async function updateContactAction(
 
   let updated: boolean;
   try {
-    updated = await updateContact(contactId, parsed.data);
+    updated = await updateContact(contactId, parsed.data, parsed.groups);
   } catch (error) {
     console.error("Failed to update contact", error);
     return failedState(prevState, formData, { message: SAVE_FAILED });
@@ -155,4 +165,50 @@ export async function addNoteAction(
 
   refresh();
   return { body: "" };
+}
+
+export async function renameGroupAction(
+  groupId: number,
+  prevState: RenameGroupState,
+  formData: FormData,
+): Promise<RenameGroupState> {
+  const value = String(formData.get("name") ?? "");
+  const version = prevState.version + 1;
+
+  let result: Awaited<ReturnType<typeof renameGroup>>;
+  try {
+    result = await renameGroup(groupId, value);
+  } catch (error) {
+    console.error("Failed to rename group", error);
+    return { version, value, error: SAVE_FAILED };
+  }
+  if (result.status === "invalid") {
+    return { version, value, error: result.error };
+  }
+  if (result.status === "missing") {
+    return { version, value, error: GROUP_MISSING };
+  }
+
+  // The new name shows up in the filter, the header and the list rows;
+  // the address stays, so the group stays selected
+  revalidatePath("/");
+  refresh();
+  return { version, renamed: true };
+}
+
+// Used as a form action through useActionState; needs nothing from the form
+export async function deleteGroupAction(groupId: number): Promise<DeleteGroupState> {
+  let name: string | null;
+  try {
+    name = await deleteGroup(groupId);
+  } catch (error) {
+    console.error("Failed to delete group", error);
+    return { error: DELETE_FAILED };
+  }
+  if (name === null) {
+    return { error: GROUP_MISSING };
+  }
+
+  revalidatePath("/");
+  redirect(`/?deletedGroup=${encodeURIComponent(name)}`);
 }

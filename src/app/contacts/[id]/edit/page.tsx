@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { countNotes, getContact } from "@/lib/contacts";
+import { listContactGroups, listGroups } from "@/lib/groups";
 import { parseContactId } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -32,9 +33,11 @@ async function EditContact({ rawId }: { rawId: string }) {
   const id = parseContactId(rawId);
   if (!id) notFound();
 
-  const [contact, notesCount] = await Promise.all([
+  const [contact, notesCount, groups, contactGroups] = await Promise.all([
     getContact(id),
     countNotes(id),
+    listGroups(),
+    listContactGroups(id),
   ]);
   if (!contact) notFound();
 
@@ -58,6 +61,8 @@ async function EditContact({ rawId }: { rawId: string }) {
               email: contact.email ?? "",
               contactFrequency: contact.contactFrequency ?? "",
             }}
+            groups={groups.map(({ id, name }) => ({ id, name }))}
+            initialGroupIds={contactGroups.map((group) => group.id)}
             submitLabel="Сохранить"
             cancelHref={`/contacts/${contact.id}`}
           />

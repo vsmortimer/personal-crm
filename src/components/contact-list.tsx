@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
 import type { ContactListItem } from "@/lib/contacts";
+import { groupNamesLine } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type LetterGroup = { letter: string; contacts: ContactListItem[] };
@@ -55,6 +56,12 @@ export function ContactList({
                     {contact.about && (
                       <p className="truncate text-sm text-muted-foreground">
                         {contact.about}
+                      </p>
+                    )}
+                    {/* The full list is on the contact's page if it doesn't fit */}
+                    {contact.groups.length > 0 && (
+                      <p className="truncate text-sm text-brand">
+                        {groupNamesLine(contact.groups)}
                       </p>
                     )}
                   </div>

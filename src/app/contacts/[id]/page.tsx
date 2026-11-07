@@ -12,9 +12,11 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CONTACT_FREQUENCY_LABELS } from "@/lib/contact-frequency";
+import { listContactGroups } from "@/lib/groups";
 import { getContact, listNotes } from "@/lib/contacts";
 import {
   formatDateTime,
+  groupNamesLine,
   initials,
   parseContactId,
   pluralize,
@@ -45,7 +47,11 @@ async function ContactDetails({ rawId }: { rawId: string }) {
   const id = parseContactId(rawId);
   if (!id) notFound();
 
-  const [contact, notes] = await Promise.all([getContact(id), listNotes(id)]);
+  const [contact, notes, groups] = await Promise.all([
+    getContact(id),
+    listNotes(id),
+    listContactGroups(id),
+  ]);
   if (!contact) notFound();
 
   return (
@@ -109,6 +115,13 @@ async function ContactDetails({ rawId }: { rawId: string }) {
             <DetailRow label="Как часто общаться">
               {contact.contactFrequency &&
                 CONTACT_FREQUENCY_LABELS[contact.contactFrequency]}
+            </DetailRow>
+            <DetailRow label="Группы">
+              {groups.length > 0 && (
+                <span className="break-words">
+                  {groupNamesLine(groups.map((group) => group.name))}
+                </span>
+              )}
             </DetailRow>
           </dl>
         </CardContent>

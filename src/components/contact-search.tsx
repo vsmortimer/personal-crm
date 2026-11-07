@@ -5,11 +5,19 @@ import { useRouter } from "next/navigation";
 import { LoaderCircle, Search } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
+import { homeHref } from "@/lib/format";
 
 const DEBOUNCE_MS = 250;
 
-// `query` is the search currently applied in the URL
-export function ContactSearch({ query }: { query: string }) {
+// `query` is the search currently applied in the URL; `groupId` is the
+// group selected in the filter, kept in the URL when the search changes
+export function ContactSearch({
+  query,
+  groupId,
+}: {
+  query: string;
+  groupId: number | null;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -36,8 +44,9 @@ export function ContactSearch({ query }: { query: string }) {
     timer.current = setTimeout(() => {
       const nextQuery = nextValue.trim();
       setRequested(nextQuery);
-      const url = nextQuery ? `/?q=${encodeURIComponent(nextQuery)}` : "/";
-      startTransition(() => router.replace(url, { scroll: false }));
+      startTransition(() =>
+        router.replace(homeHref(nextQuery, groupId), { scroll: false }),
+      );
     }, delay);
   }
 
@@ -52,6 +61,7 @@ export function ContactSearch({ query }: { query: string }) {
         search(value, 0);
       }}
     >
+      {groupId && <input type="hidden" name="group" value={groupId} />}
       <Search
         className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground"
         aria-hidden

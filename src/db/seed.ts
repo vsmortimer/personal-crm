@@ -1,4 +1,4 @@
-// Fills an empty database with realistic test contacts and notes.
+// Fills an empty database with realistic test contacts, notes and groups.
 // Usage: pnpm db:seed
 import { loadEnvConfig } from "@next/env";
 import { count } from "drizzle-orm";
@@ -7,7 +7,7 @@ import postgres from "postgres";
 
 import { CONTACT_FREQUENCIES } from "../lib/contact-frequency";
 import { getDatabaseUrl } from "./connection-url";
-import { contacts, notes } from "./schema";
+import { contactGroups, contacts, groups, notes } from "./schema";
 
 loadEnvConfig(process.cwd());
 
@@ -39,6 +39,20 @@ const frequencyRandom = createRandom(20261020);
 function pickFrequency() {
   if (frequencyRandom() >= 1 / 3) return null;
   return CONTACT_FREQUENCIES[Math.floor(frequencyRandom() * CONTACT_FREQUENCIES.length)];
+}
+
+const GROUP_NAMES = ["Семья", "Друзья", "Знакомые", "Теннис", "Аналитики"] as const;
+
+// A separate generator as well: about half of the contacts get one or two groups
+const groupRandom = createRandom(20261031);
+function pickGroups(): string[] {
+  if (groupRandom() >= 0.5) return [];
+  const pool: string[] = [...GROUP_NAMES];
+  const amount = groupRandom() < 0.7 ? 1 : 2;
+  return Array.from(
+    { length: amount },
+    () => pool.splice(Math.floor(groupRandom() * pool.length), 1)[0],
+  );
 }
 
 const MALE_FIRST_NAMES = [
@@ -299,7 +313,7 @@ function generateContacts(now: number) {
   const usedNames = new Set<string>();
   const usedPhones = new Set<string>();
   const usedEmails = new Set<string>();
-  const result: { contact: NewContact; notes: NewNote[] }[] = [];
+  const result: { contact: NewContact; notes: NewNote[]; groups: string[] }[] = [];
 
   while (result.length < CONTACT_COUNT) {
     const isFemale = chance(0.5);
@@ -336,6 +350,7 @@ function generateContacts(now: number) {
         updatedAt,
       },
       notes: contactNotes,
+      groups: pickGroups(),
     });
   }
 
@@ -361,7 +376,15 @@ async function main() {
     const generated = generateContacts(Date.now());
     let noteTotal = 0;
 
+    let membershipTotal = 0;
+
     await db.transaction(async (tx) => {
+      const insertedGroups = await tx
+        .insert(groups)
+        .values(GROUP_NAMES.map((name) => ({ name })))
+        .returning({ id: groups.id, name: groups.name });
+      const groupIds = new Map(insertedGroups.map((group) => [group.name, group.id]));
+
       for (let start = 0; start < generated.length; start += BATCH_SIZE) {
         const batch = generated.slice(start, start + BATCH_SIZE);
         const inserted = await tx
@@ -376,10 +399,23 @@ async function main() {
           await tx.insert(notes).values(batchNotes);
           noteTotal += batchNotes.length;
         }
+
+        const batchMemberships = batch.flatMap((item, index) =>
+          item.groups.map((name) => ({
+            contactId: inserted[index].id,
+            groupId: groupIds.get(name)!,
+          })),
+        );
+        if (batchMemberships.length > 0) {
+          await tx.insert(contactGroups).values(batchMemberships);
+          membershipTotal += batchMemberships.length;
+        }
       }
     });
 
-    console.log(`Seeded ${generated.length} contacts and ${noteTotal} notes.`);
+    console.log(
+      `Seeded ${generated.length} contacts, ${noteTotal} notes and ${GROUP_NAMES.length} groups with ${membershipTotal} memberships.`,
+    );
   } finally {
     await client.end();
   }

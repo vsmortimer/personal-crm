@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 
+import { ContactGroupsField } from "@/components/contact-groups-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Field,
@@ -21,6 +22,7 @@ import {
   CONTACT_FREQUENCIES,
   CONTACT_FREQUENCY_LABELS,
 } from "@/lib/contact-frequency";
+import type { FormGroup } from "@/lib/group-form";
 import {
   CONTACT_FIELDS,
   type ContactField,
@@ -34,6 +36,9 @@ type ContactFormProps = {
     formData: FormData,
   ) => Promise<ContactFormState>;
   initialValues: ContactFormValues;
+  // All groups in alphabetical order, and the ones the contact is in
+  groups: FormGroup[];
+  initialGroupIds: number[];
   submitLabel: string;
   cancelHref: string;
 };
@@ -41,11 +46,15 @@ type ContactFormProps = {
 export function ContactForm({
   action,
   initialValues,
+  groups,
+  initialGroupIds,
   submitLabel,
   cancelHref,
 }: ContactFormProps) {
   const [state, formAction, pending] = useActionState(action, {
     values: initialValues,
+    groupIds: initialGroupIds,
+    newGroups: [],
     errors: {},
     version: 0,
   });
@@ -159,6 +168,12 @@ export function ContactForm({
             {error("contactFrequency")}
           </Field>
         </div>
+
+        <ContactGroupsField
+          groups={groups}
+          initialGroupIds={state.groupIds}
+          initialNewGroups={state.newGroups}
+        />
         <FieldDescription>
           Обязательно только имя, остальное можно дописать потом.
         </FieldDescription>
