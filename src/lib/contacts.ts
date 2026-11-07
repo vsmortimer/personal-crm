@@ -126,9 +126,13 @@ const lastContactAt = sql`coalesce(max(${notes.createdAt}), ${contacts.createdAt
 // The moment the contact's period runs out
 const dueAt = sql`${lastContactAt} + ${frequencyInterval}`;
 
-// Contacts whose period has run out since the last catch-up
-export async function listDueContacts() {
+// Contacts whose period has run out since the last catch-up.
+// `now` lets tests set the clock; the app leaves it out and gets the
+// database's own time
+export async function listDueContacts(now?: Date) {
   await connection();
+
+  const currentTime = now ? sql`${now.toISOString()}::timestamptz` : sql`now()`;
 
   return (
     db
@@ -139,9 +143,9 @@ export async function listDueContacts() {
           sql<ContactFrequency>`${contacts.contactFrequency}`.as(
             "contact_frequency",
           ),
-        // Whole days, against the same now() as the filter below
+        // Whole days, against the same time as the filter below
         daysSinceContact:
-          sql<number>`floor(extract(epoch from now() - ${lastContactAt}) / 86400)::int`.as(
+          sql<number>`floor(extract(epoch from ${currentTime} - ${lastContactAt}) / 86400)::int`.as(
             "days_since_contact",
           ),
       })
@@ -149,7 +153,7 @@ export async function listDueContacts() {
       .leftJoin(notes, eq(notes.contactId, contacts.id))
       .where(isNotNull(contacts.contactFrequency))
       .groupBy(contacts.id)
-      .having(sql`${dueAt} < now()`)
+      .having(sql`${dueAt} < ${currentTime}`)
       // The longest overdue first, then in the same order as the contact list
       .orderBy(
         dueAt,

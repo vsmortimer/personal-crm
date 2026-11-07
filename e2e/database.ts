@@ -2,6 +2,7 @@
 // The app under test reads and writes the same database.
 import postgres from "postgres";
 
+import type { ContactFrequency } from "../src/lib/contact-frequency";
 import {
   E2E_DATABASE_SUFFIX,
   assertTestDatabase,
@@ -24,13 +25,29 @@ async function withDatabase(run: (sql: postgres.Sql) => Promise<void>) {
   }
 }
 
-// Empties the database and adds contacts that have only a name
-export async function resetDatabase({ contacts }: { contacts: string[] }) {
+// A contact to start from: a name alone means no frequency, added just now
+export type SeedContact =
+  | string
+  | {
+      name: string;
+      contactFrequency?: ContactFrequency;
+      createdAt?: Date;
+    };
+
+// Empties the database and adds the contacts, in this order
+export async function resetDatabase({ contacts }: { contacts: SeedContact[] }) {
   await withDatabase(async (sql) => {
     // Notes and group memberships go with them (cascade)
     await sql`truncate contacts, groups restart identity cascade`;
-    if (contacts.length > 0) {
-      await sql`insert into contacts ${sql(contacts.map((name) => ({ name })))}`;
+    for (const contact of contacts) {
+      const {
+        name,
+        contactFrequency = null,
+        createdAt,
+      } = typeof contact === "string" ? { name: contact } : contact;
+      await sql`
+        insert into contacts (name, contact_frequency, created_at, updated_at)
+        values (${name}, ${contactFrequency}, ${createdAt ?? sql`now()`}, ${createdAt ?? sql`now()`})`;
     }
   });
 }

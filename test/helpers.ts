@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { postgresErrorCode } from "@/db/errors";
 import { contactGroups, contacts, groups, notes } from "@/db/schema";
+import type { ContactFrequency } from "@/lib/contact-frequency";
 
 export { CHECK_VIOLATION, UNIQUE_VIOLATION } from "@/db/errors";
 
@@ -16,16 +17,28 @@ export async function failureCode(query: Promise<unknown>): Promise<string> {
   throw new Error("Expected the query to fail, but it succeeded");
 }
 
-export async function insertContact(name: string) {
+// Without the options: no contact frequency, added just now
+export async function insertContact(
+  name: string,
+  {
+    contactFrequency = null,
+    createdAt,
+  }: { contactFrequency?: ContactFrequency | null; createdAt?: Date } = {},
+) {
   const [contact] = await db
     .insert(contacts)
-    .values({ name })
+    .values({ name, contactFrequency, createdAt })
     .returning({ id: contacts.id });
   return contact.id;
 }
 
-export async function insertNote(contactId: number, body: string) {
-  await db.insert(notes).values({ contactId, body });
+// Without createdAt the note is written just now
+export async function insertNote(
+  contactId: number,
+  body: string,
+  createdAt?: Date,
+) {
+  await db.insert(notes).values({ contactId, body, createdAt });
 }
 
 export async function insertGroup(name: string) {
