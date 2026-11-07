@@ -37,7 +37,7 @@ if [ "$(id -u)" -ne 0 ]; then
     echo "Run with sudo: sudo bash $0" >&2
     exit 1
 fi
-for f in compose.yaml deploy.sh deploy-key.pub; do
+for f in compose.yaml deploy.sh lib.sh restore.sh deploy-key.pub; do
     [ -s "$SRC/$f" ] || fail "$SRC/$f is missing"
 done
 
@@ -105,7 +105,7 @@ if [ -n "$(db_container "$live_project")" ]; then
     tables=$(db_exec "$live_project" pg_restore --list <"$backup" | grep -c ' TABLE DATA ' || true)
     [ "$tables" -gt 0 ] || fail "the backup $backup lists no table data"
     echo "saved $backup: $(du -h "$backup" | cut -f1), tables with data: $tables"
-    echo "only root can read it; restore with pg_restore"
+    echo "only root can read it; to restore it, copy it to $APP_DIR/backups and run restore.sh"
 else
     echo "no database is running: nothing to back up"
 fi
@@ -141,7 +141,8 @@ done
 step "3/6 $APP_DIR"
 install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$APP_DIR" "$APP_DIR/deploy"
 # Every deploy copies deploy/ here again; this copy is for the move below
-install -m 644 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$SRC/compose.yaml" "$SRC/deploy.sh" "$APP_DIR/deploy/"
+install -m 644 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$SRC/compose.yaml" "$SRC/deploy.sh" "$SRC/lib.sh" "$SRC/restore.sh" \
+    "$APP_DIR/deploy/"
 if [ -s "$APP_DIR/.env" ]; then
     echo ".env exists, left as is"
 elif [ -s "$OLD_DIR/.env" ]; then
