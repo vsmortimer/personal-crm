@@ -2,61 +2,22 @@
 // the new migrations on a database that already has contacts and notes.
 // The test makes such a database from the first migration only, then
 // applies all of them, the way src/db/migrate.ts does on the server.
-import {
-  copyFile,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { rm } from "node:fs/promises";
 
-import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { expect, test } from "vitest";
 
+import { applyMigrations } from "@/db/apply-migrations";
+import { migrationsUpTo, rows } from "../../test/migrations";
 import {
   MIGRATION_DATABASE_SUFFIX,
   createTestDatabase,
 } from "../../test/test-database";
 
-const MIGRATIONS_FOLDER = "./drizzle";
 // The last migration before the contact frequency
 const BEFORE_FREQUENCY = "0000_init";
-
-type Journal = { entries: { tag: string }[] };
-
-// A copy of ./drizzle that ends at the given migration
-async function migrationsUpTo(tag: string) {
-  const folder = await mkdtemp(path.join(tmpdir(), "crm-migrations-"));
-  const journal = JSON.parse(
-    await readFile(`${MIGRATIONS_FOLDER}/meta/_journal.json`, "utf8"),
-  ) as Journal;
-  const last = journal.entries.findIndex((entry) => entry.tag === tag);
-  expect(last).toBeGreaterThanOrEqual(0);
-  const entries = journal.entries.slice(0, last + 1);
-
-  await mkdir(path.join(folder, "meta"));
-  await writeFile(
-    path.join(folder, "meta/_journal.json"),
-    JSON.stringify({ ...journal, entries }),
-  );
-  for (const entry of entries) {
-    await copyFile(
-      `${MIGRATIONS_FOLDER}/${entry.tag}.sql`,
-      path.join(folder, `${entry.tag}.sql`),
-    );
-  }
-  return folder;
-}
-
-// Plain rows, without the query details postgres adds to its result
-async function rows(query: Promise<Record<string, unknown>[]>) {
-  return [...(await query)];
-}
+// The existing contacts get this owner (migration 0004)
+const OWNER_EMAIL = "owner@mail.ru";
 
 test("after the deploy every existing contact has no frequency, and contacts and notes stay as they were", async () => {
   const folder = await migrationsUpTo(BEFORE_FREQUENCY);
@@ -82,16 +43,20 @@ test("after the deploy every existing contact has no frequency, and contacts and
     // client reads dates, and the rows must be read the same way as before
     const migrator = postgres(database.url, { max: 1, onnotice: () => {} });
     try {
-      await migrate(drizzle(migrator), { migrationsFolder: MIGRATIONS_FOLDER });
+      await applyMigrations(migrator, { ownerEmail: OWNER_EMAIL });
     } finally {
       await migrator.end();
     }
 
-    // The only change: the new empty column, i.e. «Не задано»
+    // The only changes: the new empty frequency, i.e. «Не задано», and the
+    // owner that all the existing contacts get
+    const [owner] =
+      await sql`select id from users where email = ${OWNER_EMAIL}`;
     expect(await rows(sql`select * from contacts order by id`)).toEqual(
       contactsBefore.map((contact) => ({
         ...contact,
         contact_frequency: null,
+        user_id: owner.id,
       })),
     );
     expect(await rows(sql`select * from notes order by id`)).toEqual(

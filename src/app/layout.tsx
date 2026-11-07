@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import Link from "next/link";
+import { Suspense } from "react";
+
+import { UserMenu } from "@/components/user-menu";
 
 import "./globals.css";
 
@@ -34,13 +37,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col">
         <header className="page-container pt-6 sm:pt-8">
-          <div className="flex h-11 items-center border-b sm:h-14">
+          <div className="flex h-11 items-center justify-between gap-4 border-b sm:h-14">
             <Link
               href="/"
-              className="font-display text-logo font-medium sm:text-logo-lg"
+              className="shrink-0 font-display text-logo font-medium sm:text-logo-lg"
             >
               Личная CRM
             </Link>
+            {/* Reads the cookie of the request, so it is shown when the page is asked for */}
+            <Suspense fallback={null}>
+              <UserMenu />
+            </Suspense>
           </div>
         </header>
         <main className="page-container flex-1 pt-8 pb-16 sm:pt-12 sm:pb-24">

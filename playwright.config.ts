@@ -33,6 +33,13 @@ export default defineConfig({
     env: {
       DATABASE_URL: testDatabaseUrl(E2E_DATABASE_SUFFIX),
       NEXT_TELEMETRY_DISABLED: "1",
+      // Sign-in for the tests. The link in an email leads to this address, and
+      // the emails go to Mailpit and nowhere else: whatever the .env says, the
+      // tests never send a real email. Not secrets, they protect nothing.
+      BETTER_AUTH_SECRET: "Hs8Lw3Nq7Vb2Tk9Xc4Rj6Mf5Pd1Yg0Ae",
+      BETTER_AUTH_URL: `http://127.0.0.1:${PORT}`,
+      SMTP_URL: "smtp://127.0.0.1:1025",
+      MAIL_FROM: "Личная CRM <noreply@mail.crm.app.example-crm.site>",
     },
   },
 });

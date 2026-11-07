@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { listContacts, listDueContacts } from "@/lib/contacts";
 import { listGroups, selectedGroup, type GroupListItem } from "@/lib/groups";
 import { parseContactId, pluralize } from "@/lib/format";
+import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Контакты",
@@ -53,6 +54,7 @@ async function ContactsSection({
 }: {
   searchParams: PageProps<"/">["searchParams"];
 }) {
+  const user = await requireUser();
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q : "";
   const addedId =
@@ -67,15 +69,15 @@ async function ContactsSection({
       : "";
 
   // An unknown or broken ?group= shows everyone, as «Все»
-  const groups = await listGroups();
+  const groups = await listGroups(user.id);
   const group = selectedGroup(groups, params.group);
 
   // Loaded together, so the block, the search and the list appear at once
   // and the search field does not jump down when the block arrives.
   // The block is the same whatever group is selected.
   const [{ contacts, total }, dueContacts] = await Promise.all([
-    listContacts(query, group?.id ?? null),
-    listDueContacts(),
+    listContacts(user.id, query, group?.id ?? null),
+    listDueContacts(user.id),
   ]);
   const added = addedId
     ? contacts.find((contact) => contact.id === addedId)
@@ -194,9 +196,7 @@ function EmptyState({
           <p className="font-display text-section font-medium">
             Контактов пока нет
           </p>
-          <p className="mt-3 text-ink-soft">
-            Добавьте первого человека, чтобы не потерять с ним связь.
-          </p>
+          <p className="mt-3 text-ink-soft">Добавь первый контакт</p>
         </>
       )}
     </div>

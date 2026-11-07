@@ -12,6 +12,7 @@ import {
   type ContactInput,
 } from "@/lib/contacts";
 import { deleteGroup, renameGroup } from "@/lib/groups";
+import { requireUser } from "@/lib/session";
 import {
   CONTACT_FIELDS,
   contactSchema,
@@ -91,12 +92,13 @@ export async function createContactAction(
   prevState: ContactFormState,
   formData: FormData,
 ): Promise<ContactFormState> {
+  const user = await requireUser();
   const parsed = parseContact(prevState, formData);
   if (!parsed.ok) return parsed.state;
 
   let id: number;
   try {
-    id = await createContact(parsed.data, parsed.groups);
+    id = await createContact(user.id, parsed.data, parsed.groups);
   } catch (error) {
     console.error("Failed to create contact", error);
     return failedState(prevState, formData, { message: SAVE_FAILED });
@@ -111,12 +113,18 @@ export async function updateContactAction(
   prevState: ContactFormState,
   formData: FormData,
 ): Promise<ContactFormState> {
+  const user = await requireUser();
   const parsed = parseContact(prevState, formData);
   if (!parsed.ok) return parsed.state;
 
   let updated: boolean;
   try {
-    updated = await updateContact(contactId, parsed.data, parsed.groups);
+    updated = await updateContact(
+      user.id,
+      contactId,
+      parsed.data,
+      parsed.groups,
+    );
   } catch (error) {
     console.error("Failed to update contact", error);
     return failedState(prevState, formData, { message: SAVE_FAILED });
@@ -133,9 +141,10 @@ export async function updateContactAction(
 export async function deleteContactAction(
   contactId: number,
 ): Promise<DeleteContactState> {
+  const user = await requireUser();
   let name: string | null;
   try {
-    name = await deleteContact(contactId);
+    name = await deleteContact(user.id, contactId);
   } catch (error) {
     console.error("Failed to delete contact", error);
     return { error: DELETE_FAILED };
@@ -153,6 +162,7 @@ export async function addNoteAction(
   _prevState: NoteFormState,
   formData: FormData,
 ): Promise<NoteFormState> {
+  const user = await requireUser();
   const body = String(formData.get("body") ?? "");
   const parsed = noteSchema.safeParse({ body });
   if (!parsed.success) {
@@ -161,7 +171,7 @@ export async function addNoteAction(
 
   let added: boolean;
   try {
-    added = await addNote(contactId, parsed.data.body);
+    added = await addNote(user.id, contactId, parsed.data.body);
   } catch (error) {
     console.error("Failed to add note", error);
     return { body, error: SAVE_FAILED };
@@ -179,12 +189,13 @@ export async function renameGroupAction(
   prevState: RenameGroupState,
   formData: FormData,
 ): Promise<RenameGroupState> {
+  const user = await requireUser();
   const value = String(formData.get("name") ?? "");
   const version = prevState.version + 1;
 
   let result: Awaited<ReturnType<typeof renameGroup>>;
   try {
-    result = await renameGroup(groupId, value);
+    result = await renameGroup(user.id, groupId, value);
   } catch (error) {
     console.error("Failed to rename group", error);
     return { version, value, error: SAVE_FAILED };
@@ -207,9 +218,10 @@ export async function renameGroupAction(
 export async function deleteGroupAction(
   groupId: number,
 ): Promise<DeleteGroupState> {
+  const user = await requireUser();
   let name: string | null;
   try {
-    name = await deleteGroup(groupId);
+    name = await deleteGroup(user.id, groupId);
   } catch (error) {
     console.error("Failed to delete group", error);
     return { error: DELETE_FAILED };

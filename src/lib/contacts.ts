@@ -1,6 +1,15 @@
 import "server-only";
 
-import { and, count, desc, eq, isNotNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  isNotNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import { connection } from "next/server";
 import { cache } from "react";
 
@@ -53,9 +62,13 @@ function inGroup(groupId: number) {
   )`;
 }
 
+// Every function below takes the id of the person first and sees only the
+// contacts of that person. A contact of someone else is as good as not there.
+
 // With a group, both the list and the total are within that group:
 // "Найдено: 2 из 5" where 5 is how many people are in the group
 export async function listContacts(
+  userId: string,
   query: string,
   groupId: number | null = null,
 ) {
@@ -86,14 +99,17 @@ export async function listContacts(
         groups: contactGroupNames.as("groups"),
       })
       .from(contacts)
-      .where(and(nameFilter, groupFilter))
+      .where(and(eq(contacts.userId, userId), nameFilter, groupFilter))
       // By surname, then by the rest of the name within one surname
       .orderBy(
         sql`${surname} collate "ru-x-icu"`,
         sql`${listName} collate "ru-x-icu"`,
         contacts.id,
       ),
-    db.select({ total: count() }).from(contacts).where(groupFilter),
+    db
+      .select({ total: count() })
+      .from(contacts)
+      .where(and(eq(contacts.userId, userId), groupFilter)),
   ]);
 
   return { contacts: rows, total };
@@ -129,7 +145,7 @@ const dueAt = sql`${lastContactAt} + ${frequencyInterval}`;
 // Contacts whose period has run out since the last catch-up.
 // `now` lets tests set the clock; the app leaves it out and gets the
 // database's own time
-export async function listDueContacts(now?: Date) {
+export async function listDueContacts(userId: string, now?: Date) {
   await connection();
 
   const currentTime = now ? sql`${now.toISOString()}::timestamptz` : sql`now()`;
@@ -151,7 +167,9 @@ export async function listDueContacts(now?: Date) {
       })
       .from(contacts)
       .leftJoin(notes, eq(notes.contactId, contacts.id))
-      .where(isNotNull(contacts.contactFrequency))
+      .where(
+        and(eq(contacts.userId, userId), isNotNull(contacts.contactFrequency)),
+      )
       .groupBy(contacts.id)
       .having(sql`${dueAt} < ${currentTime}`)
       // The longest overdue first, then in the same order as the contact list
@@ -167,53 +185,62 @@ export async function listDueContacts(now?: Date) {
 export type DueContact = Awaited<ReturnType<typeof listDueContacts>>[number];
 
 // cache() dedupes the query between the page and its metadata within one request
-export const getContact = cache(async (id: number) => {
+export const getContact = cache(async (userId: string, id: number) => {
   await connection();
 
   const [contact] = await db
     .select()
     .from(contacts)
-    .where(eq(contacts.id, id))
+    .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
     .limit(1);
   return contact ?? null;
 });
 
-export async function listNotes(contactId: number) {
+// A note belongs to the owner of its contact, so the notes are read through it
+function notesOfContact(userId: string, contactId: number) {
+  return and(eq(notes.contactId, contactId), eq(contacts.userId, userId));
+}
+
+export async function listNotes(userId: string, contactId: number) {
   await connection();
 
   return db
-    .select()
+    .select(getTableColumns(notes))
     .from(notes)
-    .where(eq(notes.contactId, contactId))
+    .innerJoin(contacts, eq(contacts.id, notes.contactId))
+    .where(notesOfContact(userId, contactId))
     .orderBy(desc(notes.createdAt), desc(notes.id));
 }
 
-export async function countNotes(contactId: number) {
+export async function countNotes(userId: string, contactId: number) {
   await connection();
 
   const [{ total }] = await db
     .select({ total: count() })
     .from(notes)
-    .where(eq(notes.contactId, contactId));
+    .innerJoin(contacts, eq(contacts.id, notes.contactId))
+    .where(notesOfContact(userId, contactId));
   return total;
 }
 
 // The contact and its groups are saved together or not at all
 export async function createContact(
+  userId: string,
   input: ContactInput,
   groupsInput: ContactGroupsInput,
 ) {
   return db.transaction(async (tx) => {
     const [created] = await tx
       .insert(contacts)
-      .values(input)
+      .values({ ...input, userId })
       .returning({ id: contacts.id });
-    await setContactGroups(tx, created.id, groupsInput);
+    await setContactGroups(tx, userId, created.id, groupsInput);
     return created.id;
   });
 }
 
 export async function updateContact(
+  userId: string,
   id: number,
   input: ContactInput,
   groupsInput: ContactGroupsInput,
@@ -222,32 +249,32 @@ export async function updateContact(
     const updated = await tx
       .update(contacts)
       .set(input)
-      .where(eq(contacts.id, id))
+      .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
       .returning({ id: contacts.id });
     if (updated.length === 0) return false;
 
-    await setContactGroups(tx, id, groupsInput);
+    await setContactGroups(tx, userId, id, groupsInput);
     return true;
   });
 }
 
 // Returns the deleted contact's name, or null if it was already gone.
 // Its notes are removed by the database (on delete cascade).
-export async function deleteContact(id: number) {
+export async function deleteContact(userId: string, id: number) {
   const [deleted] = await db
     .delete(contacts)
-    .where(eq(contacts.id, id))
+    .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
     .returning({ name: contacts.name });
   return deleted?.name ?? null;
 }
 
-export async function addNote(contactId: number, body: string) {
+export async function addNote(userId: string, contactId: number, body: string) {
   return db.transaction(async (tx) => {
     // Adding a note counts as a change to the contact
     const touched = await tx
       .update(contacts)
       .set({ updatedAt: new Date() })
-      .where(eq(contacts.id, contactId))
+      .where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)))
       .returning({ id: contacts.id });
     if (touched.length === 0) {
       return false;

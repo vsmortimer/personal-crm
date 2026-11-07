@@ -1,6 +1,8 @@
 # The app and its own Postgres on the server, compose project "prod". Every deploy copies
 # deploy/ to /srv/prod/deploy; deploy.sh runs this file with APP_TAG set to the commit to run.
-# Database settings come from /srv/prod/.env (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB).
+# Database settings come from /srv/prod/.env (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB),
+# and so do the sign-in settings: BETTER_AUTH_SECRET, BETTER_AUTH_URL, SMTP_URL, MAIL_FROM
+# and OWNER_EMAIL. Without any of them compose stops at the first step of a deploy.
 # The scripts pass -p prod too; the name here keeps a bare `docker compose` from starting
 # a second stack with an empty database.
 name: prod
@@ -9,6 +11,16 @@ x-database-settings: &database-settings
   POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
   POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+
+# What the app needs to sign people in and to send them the link by email. The one-off
+# container that applies migrations and `deploy.sh seed` are this same service, so they get
+# these too; OWNER_EMAIL is what migration 0004 and the demo data need.
+x-login-settings: &login-settings
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL in .env}
+  SMTP_URL: ${SMTP_URL:?set SMTP_URL in .env}
+  MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM in .env}
+  OWNER_EMAIL: ${OWNER_EMAIL:?set OWNER_EMAIL in .env}
 
 # Logs of each container take at most 3 files of 10 MB
 x-logging: &logging
@@ -43,7 +55,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      <<: *database-settings
+      <<: [*database-settings, *login-settings]
       POSTGRES_HOST: db
     ports:
       # nginx proxies app.example-crm.site here

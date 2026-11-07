@@ -5,15 +5,18 @@ import { connection } from "next/server";
 
 import { db } from "@/db";
 import { UNIQUE_VIOLATION, postgresErrorCode } from "@/db/errors";
-import { contactGroups, groups } from "@/db/schema";
+import { contactGroups, contacts, groups } from "@/db/schema";
 import { parseGroupId } from "@/lib/format";
 import { groupNameSchema, type ContactGroupsInput } from "@/lib/validation";
 
 // Alphabetical, the same way the contact list sorts names
 const byName = [sql`${groups.name} collate "ru-x-icu"`, groups.id];
 
+// Every function here takes the id of the person first and sees only the
+// groups of that person. A group of someone else is as good as not there.
+
 // All groups with how many contacts are in each; empty groups included
-export async function listGroups() {
+export async function listGroups(userId: string) {
   await connection();
 
   return db
@@ -24,6 +27,7 @@ export async function listGroups() {
     })
     .from(groups)
     .leftJoin(contactGroups, eq(contactGroups.groupId, groups.id))
+    .where(eq(groups.userId, userId))
     .groupBy(groups.id)
     .orderBy(...byName);
 }
@@ -40,24 +44,32 @@ export function selectedGroup<T extends { id: number }>(
   return groups.find((group) => group.id === id) ?? null;
 }
 
-export async function listContactGroups(contactId: number) {
+export async function listContactGroups(userId: string, contactId: number) {
   await connection();
 
   return db
     .select({ id: groups.id, name: groups.name })
     .from(contactGroups)
     .innerJoin(groups, eq(groups.id, contactGroups.groupId))
-    .where(eq(contactGroups.contactId, contactId))
+    .innerJoin(contacts, eq(contacts.id, contactGroups.contactId))
+    .where(
+      and(
+        eq(contactGroups.contactId, contactId),
+        eq(groups.userId, userId),
+        eq(contacts.userId, userId),
+      ),
+    )
     .orderBy(...byName);
 }
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 // Puts the contact into exactly these groups, inside the contact's own save.
-// New names become groups; a name that already exists in any letter case
-// (e.g. just created in another tab) means that group, not a copy.
+// New names become groups of this user; a name that already exists in any
+// letter case (e.g. just created in another tab) means that group, not a copy.
 export async function setContactGroups(
   tx: Transaction,
+  userId: string,
   contactId: number,
   { groupIds, newGroups }: ContactGroupsInput,
 ) {
@@ -65,16 +77,19 @@ export async function setContactGroups(
   if (newGroups.length > 0) {
     await tx
       .insert(groups)
-      .values(newGroups.map((name) => ({ name })))
+      .values(newGroups.map((name) => ({ userId, name })))
       .onConflictDoNothing();
     const named = await tx
       .select({ id: groups.id })
       .from(groups)
       .where(
-        sql`lower(${groups.name}) in (${sql.join(
-          newGroups.map((name) => sql`lower(${name})`),
-          sql`, `,
-        )})`,
+        and(
+          eq(groups.userId, userId),
+          sql`lower(${groups.name}) in (${sql.join(
+            newGroups.map((name) => sql`lower(${name})`),
+            sql`, `,
+          )})`,
+        ),
       );
     ids.push(...named.map((group) => group.id));
   }
@@ -82,7 +97,8 @@ export async function setContactGroups(
   await tx.delete(contactGroups).where(eq(contactGroups.contactId, contactId));
   if (ids.length === 0) return;
 
-  // Selecting from groups skips ids of groups deleted meanwhile
+  // Selecting from this user's groups skips ids of groups deleted meanwhile
+  // and ids of groups of other users, which can only come from a forged request
   await tx.insert(contactGroups).select(
     tx
       .select({
@@ -90,7 +106,7 @@ export async function setContactGroups(
         groupId: groups.id,
       })
       .from(groups)
-      .where(inArray(groups.id, ids)),
+      .where(and(inArray(groups.id, ids), eq(groups.userId, userId))),
   );
 }
 
@@ -102,6 +118,7 @@ export type RenameGroupResult =
 
 // The same name rules as for a new group in the contact form
 export async function renameGroup(
+  userId: string,
   id: number,
   rawName: string,
 ): Promise<RenameGroupResult> {
@@ -117,7 +134,11 @@ export async function renameGroup(
       .select({ name: groups.name })
       .from(groups)
       .where(
-        and(sql`lower(${groups.name}) = lower(${name})`, ne(groups.id, id)),
+        and(
+          eq(groups.userId, userId),
+          sql`lower(${groups.name}) = lower(${name})`,
+          ne(groups.id, id),
+        ),
       )
       .limit(1);
     return other
@@ -132,7 +153,7 @@ export async function renameGroup(
     const renamed = await db
       .update(groups)
       .set({ name })
-      .where(eq(groups.id, id))
+      .where(and(eq(groups.id, id), eq(groups.userId, userId)))
       .returning({ id: groups.id });
     return renamed.length > 0
       ? { status: "renamed", name }
@@ -149,10 +170,10 @@ export async function renameGroup(
 
 // Returns the deleted group's name, or null if it was already gone.
 // Its contacts stay; the database removes only their links to it.
-export async function deleteGroup(id: number) {
+export async function deleteGroup(userId: string, id: number) {
   const [deleted] = await db
     .delete(groups)
-    .where(eq(groups.id, id))
+    .where(and(eq(groups.id, id), eq(groups.userId, userId)))
     .returning({ name: groups.name });
   return deleted?.name ?? null;
 }

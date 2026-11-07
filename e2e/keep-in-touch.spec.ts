@@ -4,7 +4,8 @@
 // order of the block are covered by src/lib/keep-in-touch.test.ts.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { resetDatabase } from "./database";
+import { OWNER_EMAIL, resetDatabase } from "./database";
+import { signIn } from "./sign-in";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -50,6 +51,7 @@ function notes(page: Page) {
 
 test("the frequency in the form and on the card", async ({ page }) => {
   await resetDatabase({ contacts: [] });
+  await signIn(page, OWNER_EMAIL);
 
   await test.step("a new contact has «Не задано»", async () => {
     await page.goto("/contacts/new");
@@ -122,6 +124,7 @@ test("a contact who is due leaves the block after a note", async ({ page }) => {
       },
     ],
   });
+  await signIn(page, OWNER_EMAIL);
 
   await test.step("the block is above the search with Иван in it", async () => {
     await page.goto("/");
@@ -197,6 +200,7 @@ test("eight who are due: «Показать ещё 3» and «Свернуть»"
       createdAt: daysAgo(15 - index),
     })),
   });
+  await signIn(page, OWNER_EMAIL);
   const firstFive = [
     /^Сидоров Олег/,
     /^Смирнова Анна/,
@@ -262,6 +266,7 @@ test("three who are due: all of them and no «Показать ещё»", async 
       }),
     ),
   });
+  await signIn(page, OWNER_EMAIL);
 
   await page.goto("/");
 

@@ -72,10 +72,29 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # Catches the emails the app sends; the tests read them over its API
+      # (test/mailpit.ts). Nothing leaves the job
+      mail:
+        image: axllent/mailpit:v1.33.0
+        ports:
+          - 1025:1025
+          - 8025:8025
+        options: >-
+          --health-cmd "/mailpit readyz"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       POSTGRES_USER: ci
       POSTGRES_PASSWORD: ci
       POSTGRES_DB: crm
+      # Sign-in settings for the tests: not secrets, they protect nothing.
+      # The emails go to the Mailpit container above, never to a real mailbox
+      BETTER_AUTH_SECRET: Hs8Lw3Nq7Vb2Tk9Xc4Rj6Mf5Pd1Yg0Ae
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      SMTP_URL: smtp://127.0.0.1:1025
+      MAIL_FROM: Личная CRM <noreply@mail.crm.app.example-crm.site>
+      MAILPIT_URL: http://127.0.0.1:8025
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -103,10 +122,29 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # Catches the emails the app sends; the tests read them over its API
+      # (test/mailpit.ts). Nothing leaves the job
+      mail:
+        image: axllent/mailpit:v1.33.0
+        ports:
+          - 1025:1025
+          - 8025:8025
+        options: >-
+          --health-cmd "/mailpit readyz"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       POSTGRES_USER: ci
       POSTGRES_PASSWORD: ci
       POSTGRES_DB: crm
+      # Sign-in settings for the tests: not secrets, they protect nothing.
+      # The emails go to the Mailpit container above, never to a real mailbox
+      BETTER_AUTH_SECRET: Hs8Lw3Nq7Vb2Tk9Xc4Rj6Mf5Pd1Yg0Ae
+      BETTER_AUTH_URL: http://127.0.0.1:3100
+      SMTP_URL: smtp://127.0.0.1:1025
+      MAIL_FROM: Личная CRM <noreply@mail.crm.app.example-crm.site>
+      MAILPIT_URL: http://127.0.0.1:8025
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

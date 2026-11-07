@@ -10,9 +10,12 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1 NEXT_STANDALONE=1
-# next build loads the database module, which needs settings to exist; pages read data
-# only at request time, so nothing connects. These stay in this stage, not in the image.
-RUN POSTGRES_USER=build POSTGRES_PASSWORD=build POSTGRES_DB=build pnpm build
+# next build loads the database module and the sign-in module, which need settings to
+# exist; pages read data only at request time, so nothing connects and nothing is signed.
+# These stay in this stage, not in the image.
+RUN POSTGRES_USER=build POSTGRES_PASSWORD=build POSTGRES_DB=build \
+    BETTER_AUTH_SECRET=Zq7vK2mXp9RtLw4HsN8bYc3JdFg6AeUo BETTER_AUTH_URL=http://localhost:3000 \
+    pnpm build
 # Migrations and test data run inside the image, which has no dev dependencies
 RUN pnpm exec esbuild src/db/migrate.ts src/db/seed.ts \
     --bundle --platform=node --target=node24 --format=cjs \
