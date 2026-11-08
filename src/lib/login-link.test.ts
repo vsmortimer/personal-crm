@@ -279,6 +279,22 @@ describe("requestLoginLink: no more than 3 emails in 10 minutes", () => {
     expect(await activeLinks()).toHaveLength(1);
   });
 
+  // Each request holds a connection of its own and takes one more for the
+  // link: without a cap on parallel requests the pool runs dry and all hang
+  test("many requests at the same time all get an answer", async () => {
+    const addresses = Array.from(
+      { length: 20 },
+      (_, index) => `user${index}@mail.ru`,
+    );
+
+    const answers = await Promise.all(addresses.map(request));
+
+    expect(answers).toEqual(addresses.map((email) => ({ sentTo: email })));
+    for (const email of addresses) {
+      expect(await emailsTo(email)).toHaveLength(1);
+    }
+  });
+
   test("the form action shows «Слишком часто» under the button", async () => {
     for (let time = 0; time < 3; time++) await request("anna@mail.ru");
     const formData = new FormData();
