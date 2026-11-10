@@ -10,6 +10,7 @@ import { db } from "@/db";
 import { loginLinkRequests, users, verifications } from "@/db/schema";
 import { requestLoginLink } from "@/lib/login-link";
 import type { LoginFormState } from "@/lib/login-form";
+import { captureErrorLog } from "../../test/captured-log";
 import { clearEmails, emailsTo } from "../../test/mailpit";
 
 // A server action reads the headers of the request; there is none in Vitest
@@ -44,6 +45,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 describe("requestLoginLink: the email goes out", () => {
@@ -293,6 +295,17 @@ describe("requestLoginLink: no more than 3 emails in 10 minutes", () => {
     for (const email of addresses) {
       expect(await emailsTo(email)).toHaveLength(1);
     }
+  });
+
+  test("a failed send does not put the address in the error log", async () => {
+    breakMailServer();
+    const log = captureErrorLog();
+
+    expect(await request("anna.smirnova@mail.ru")).toEqual({ error: NOT_SENT });
+
+    const text = log.text();
+    expect(text).toContain("Failed to send a sign-in link");
+    expect(text).not.toContain("anna.smirnova@mail.ru");
   });
 
   test("the form action shows «Слишком часто» under the button", async () => {
