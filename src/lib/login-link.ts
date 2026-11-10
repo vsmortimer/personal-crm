@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { loginLinkRequests, verifications } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { normalizeEmail } from "@/lib/email";
+import { logError } from "@/lib/log-error";
 
 // At most 3 emails to one address in 10 minutes
 const MAX_EMAILS = 3;
@@ -100,7 +101,7 @@ export async function requestLoginLink(
       }),
     );
   } catch (error) {
-    console.error("Failed to send a sign-in link", error);
+    logError("Failed to send a sign-in link", error);
     return { error: NOT_SENT };
   }
 }

@@ -12,6 +12,7 @@ import {
   type ContactInput,
 } from "@/lib/contacts";
 import { deleteGroup, renameGroup } from "@/lib/groups";
+import { logError } from "@/lib/log-error";
 import { requireUser } from "@/lib/session";
 import {
   CONTACT_FIELDS,
@@ -100,7 +101,7 @@ export async function createContactAction(
   try {
     id = await createContact(user.id, parsed.data, parsed.groups);
   } catch (error) {
-    console.error("Failed to create contact", error);
+    logError("Failed to create contact", error);
     return failedState(prevState, formData, { message: SAVE_FAILED });
   }
 
@@ -126,7 +127,7 @@ export async function updateContactAction(
       parsed.groups,
     );
   } catch (error) {
-    console.error("Failed to update contact", error);
+    logError("Failed to update contact", error);
     return failedState(prevState, formData, { message: SAVE_FAILED });
   }
   if (!updated) {
@@ -146,7 +147,7 @@ export async function deleteContactAction(
   try {
     name = await deleteContact(user.id, contactId);
   } catch (error) {
-    console.error("Failed to delete contact", error);
+    logError("Failed to delete contact", error);
     return { error: DELETE_FAILED };
   }
   if (name === null) {
@@ -173,7 +174,7 @@ export async function addNoteAction(
   try {
     added = await addNote(user.id, contactId, parsed.data.body);
   } catch (error) {
-    console.error("Failed to add note", error);
+    logError("Failed to add note", error);
     return { body, error: SAVE_FAILED };
   }
   if (!added) {
@@ -197,7 +198,7 @@ export async function renameGroupAction(
   try {
     result = await renameGroup(user.id, groupId, value);
   } catch (error) {
-    console.error("Failed to rename group", error);
+    logError("Failed to rename group", error);
     return { version, value, error: SAVE_FAILED };
   }
   if (result.status === "invalid") {
@@ -223,7 +224,7 @@ export async function deleteGroupAction(
   try {
     name = await deleteGroup(user.id, groupId);
   } catch (error) {
-    console.error("Failed to delete group", error);
+    logError("Failed to delete group", error);
     return { error: DELETE_FAILED };
   }
   if (name === null) {
