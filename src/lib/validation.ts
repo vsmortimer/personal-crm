@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// First, before any schema below is created: no `new Function` under our CSP
+import "@/lib/zod-config";
+
 import { moscowToday } from "@/lib/birthday";
 import { CONTACT_FREQUENCIES } from "@/lib/contact-frequency";
 import { parseGroupId } from "@/lib/format";
