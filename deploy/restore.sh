@@ -15,6 +15,8 @@ set -Eeuo pipefail
 
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# Only prod: the stand's database is made by `deploy.sh staging refresh-db`
+use_environment prod
 require_deploy_user "$@"
 
 # What a failure at the current step leaves behind; empty while nothing has changed
