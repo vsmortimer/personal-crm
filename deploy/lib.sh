@@ -1,39 +1,76 @@
 # Shared by deploy.sh and restore.sh, which source it: where the app lives on the server and
-# the steps both of them need. Every deploy copies it to /srv/prod/deploy with the rest of deploy/.
+# the steps both of them need. Every deploy copies it to /srv/<environment>/deploy with the rest
+# of deploy/.
+#
+# Two environments run on the server from this same code: "prod" and "staging" (the test stand).
+# A script picks one with use_environment before anything else; everything that differs between
+# them is set in that one function.
 #
 # Functions here check every step themselves and return 1 on failure, because callers run them
 # as `fn || fail ...`, and bash ignores `set -e` inside a function called that way.
 
-APP_DIR=/srv/prod
 IMAGE=ghcr.io/vsmortimer/personal-crm
-HEALTH_URL=http://127.0.0.1:3000/health
 WAIT_SECONDS=120
-# The version that last passed the smoke test, and the one live before the last deploy
-LIVE_FILE=$APP_DIR/live-tag
-PREVIOUS_FILE=$APP_DIR/previous-tag
-# Every deploy and every restore saves the database here first; deploys keep the newest ones
-BACKUP_DIR=$APP_DIR/backups
 KEEP_BACKUPS=10
+ENVIRONMENTS="staging prod"
 
 step() { printf '\n=== %s\n' "$*"; }
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
-# Pass the script's arguments: they go into the hint on how to run it
+# Sets everything that depends on the environment: folder, compose project, port, address,
+# whether deploys back the database up and the memory limits of the containers.
+# Prod has no memory limits: it runs as it always did. The stand shares a small server with it,
+# so its containers are capped and can never take the memory prod needs.
+use_environment() {
+    ENVIRONMENT=${1:-}
+    case "$ENVIRONMENT" in
+        prod)
+            APP_PORT=3000
+            APP_DOMAIN=app.example-crm.site
+            BACKUP=yes
+            APP_MEM_LIMIT=0
+            DB_MEM_LIMIT=0
+            ;;
+        staging)
+            APP_PORT=3001
+            APP_DOMAIN=test-app.example-crm.site
+            BACKUP=no
+            APP_MEM_LIMIT=320m
+            DB_MEM_LIMIT=192m
+            ;;
+        *) fail "unknown environment '$ENVIRONMENT': use one of: $ENVIRONMENTS" ;;
+    esac
+    APP_DIR=/srv/$ENVIRONMENT
+    HEALTH_URL=http://127.0.0.1:$APP_PORT/health
+    # The version that last passed the smoke test, and the one live before the last deploy
+    LIVE_FILE=$APP_DIR/live-tag
+    PREVIOUS_FILE=$APP_DIR/previous-tag
+    # Every prod deploy and every restore saves the database here first; deploys keep the
+    # newest ones. The stand has no backups of its own: its database is a copy of prod's
+    BACKUP_DIR=$APP_DIR/backups
+}
+
+# Pass the script's arguments, the environment first: they go into the hint on how to run it
 require_deploy_user() {
     [ "$(id -un)" = crmdeploy ] || fail "run as crmdeploy: sudo -u crmdeploy bash $0 $*"
     cd "$APP_DIR"
     [ -s .env ] || fail "$APP_DIR/.env is empty: put the database settings there first"
 }
 
-# One deploy, rollback or restore at a time
+# One deploy, rollback or restore at a time in each environment. GitHub Actions also runs the
+# deploys of one environment one after another; this lock covers a person's commands too
 lock() {
     exec 9>"$APP_DIR/deploy.lock"
-    flock -w 900 9 || fail "another deploy or restore is still running"
+    flock -w 900 9 || fail "another deploy or restore of $ENVIRONMENT is still running"
 }
 
-# compose.yaml needs a tag even for commands that only touch the database
+# compose.yaml needs a tag even for commands that only touch the database. Everything that
+# differs between the environments is passed here, in the process environment, which wins over
+# the same name in .env: a stale line there cannot move the stand onto prod's port
 compose_with_stdin() {
-    APP_TAG=$1 docker compose -p prod --env-file "$APP_DIR/.env" -f "$APP_DIR/deploy/compose.yaml" "${@:2}"
+    APP_TAG=$1 COMPOSE_PROJECT_NAME=$ENVIRONMENT APP_PORT=$APP_PORT \
+        APP_MEM_LIMIT=$APP_MEM_LIMIT DB_MEM_LIMIT=$DB_MEM_LIMIT \
+        docker compose -p "$ENVIRONMENT" --env-file "$APP_DIR/.env" -f "$APP_DIR/deploy/compose.yaml" "${@:2}"
 }
 compose() { compose_with_stdin "$@" </dev/null; }
 
@@ -44,6 +81,43 @@ db_exec() { compose_with_stdin none exec -T db "$@"; }
 read_tag() { cat "$1" 2>/dev/null || true; }
 
 check_tag() { [[ $1 =~ ^[0-9a-f]{40}$ ]] || fail "not a full commit hash: '$1'"; }
+
+# The value of NAME in a .env file, without quotes and a trailing slash; empty if there is none.
+# Read as text: the file is never sourced
+env_value() {
+    local value
+    value=$(grep -E "^$2=" "$1" 2>/dev/null | tail -n 1) || true
+    value=${value#*=}
+    value=${value#[\"\']}
+    value=${value%[\"\']}
+    printf '%s' "${value%/}"
+}
+
+# Stops a deploy before it changes anything if this environment's .env belongs to another one:
+# the sign-in link in the email is built from BETTER_AUTH_URL, so it must lead to this
+# environment, and the two environments must not share the secret that signs their sessions
+check_env_file() {
+    local url secret other other_secret
+    url=$(env_value "$APP_DIR/.env" BETTER_AUTH_URL)
+    [ "$url" = "https://$APP_DOMAIN" ] ||
+        fail "BETTER_AUTH_URL in $APP_DIR/.env is '$url': it must be https://$APP_DOMAIN, so that the sign-in link leads to $ENVIRONMENT. Nothing was changed"
+    secret=$(env_value "$APP_DIR/.env" BETTER_AUTH_SECRET)
+    for other in $ENVIRONMENTS; do
+        [ "$other" != "$ENVIRONMENT" ] && [ -r "/srv/$other/.env" ] || continue
+        other_secret=$(env_value "/srv/$other/.env" BETTER_AUTH_SECRET)
+        [ -z "$secret" ] || [ "$secret" != "$other_secret" ] ||
+            fail "BETTER_AUTH_SECRET in $APP_DIR/.env is the same as in /srv/$other/.env: each environment needs its own. Nothing was changed"
+    done
+}
+
+# Versions live or previous in any environment: the image is shared by the environments of this
+# server, so cleaning up after one of them must not take the other's version away
+kept_tags() {
+    local env
+    for env in $ENVIRONMENTS; do
+        printf '%s\n%s\n' "$(read_tag "/srv/$env/live-tag")" "$(read_tag "/srv/$env/previous-tag")"
+    done
+}
 
 health_matches() {
     local body

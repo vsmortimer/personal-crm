@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
-# Runs in GitHub Actions once the image is in GHCR (see .github/workflows/deploy.yml):
-# copies deploy/ to the server, runs deploy.sh there and smoke-tests the public address.
+# Runs in GitHub Actions once the image is in GHCR (see .github/workflows/deploy.yml), for one
+# environment: ci-deploy.sh <staging|prod>. Copies deploy/ to the server, runs deploy.sh there and
+# smoke-tests the public address. The same script deploys the stand and prod.
 # Needs DEPLOY_HOST, DEPLOY_KNOWN_HOSTS, DEPLOY_SSH_KEY and the job's GITHUB_TOKEN.
 set -Eeuo pipefail
 
-APP_URL=https://app.example-crm.site
-REMOTE=crmdeploy@${DEPLOY_HOST:?}
-REMOTE_DIR=/srv/prod/deploy
-
 step() { printf '\n=== %s\n' "$*"; }
 fail() { echo "ERROR: $*" >&2; exit 1; }
+
+ENVIRONMENT=${1:-}
+case "$ENVIRONMENT" in
+    prod) APP_URL=https://app.example-crm.site ;;
+    # The stand is behind a password, except /health: this check comes without one
+    staging) APP_URL=https://test-app.example-crm.site ;;
+    *) fail "usage: ci-deploy.sh <staging|prod>" ;;
+esac
+REMOTE=crmdeploy@${DEPLOY_HOST:?}
+REMOTE_DIR=/srv/$ENVIRONMENT/deploy
 
 install -d -m 700 ~/.ssh
 printf '%s\n' "${DEPLOY_SSH_KEY:?}" >~/.ssh/deploy_key
@@ -20,9 +27,9 @@ ssh_options=(-i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes 
 step "Copying deploy/ to $REMOTE_DIR"
 scp -q "${ssh_options[@]}" deploy/* "$REMOTE:$REMOTE_DIR/"
 
-step "Deploying $GITHUB_SHA on the server"
+step "Deploying $GITHUB_SHA to $ENVIRONMENT on the server"
 # The registry token goes on stdin: command lines are visible to everyone on the server
-ssh -T "${ssh_options[@]}" "$REMOTE" bash "$REMOTE_DIR/deploy.sh" deploy "$GITHUB_SHA" "$GITHUB_ACTOR" \
+ssh -T "${ssh_options[@]}" "$REMOTE" bash "$REMOTE_DIR/deploy.sh" "$ENVIRONMENT" deploy "$GITHUB_SHA" "$GITHUB_ACTOR" \
     <<<"${GITHUB_TOKEN:?}"
 
 step "Smoke test of $APP_URL/health"

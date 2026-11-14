@@ -1,22 +1,28 @@
 #!/usr/bin/env bash
-# Runs the app on the server as user crmdeploy, compose project "prod". Every deploy copies
-# deploy/ to /srv/prod/deploy and runs this script from there (see ci-deploy.sh).
+# Runs the app on the server as user crmdeploy, in one of two environments: "prod" (compose project
+# prod, /srv/prod) and "staging", the test stand (project staging, /srv/staging). It is one script
+# and one compose.yaml for both; the environment is the first argument. Every deploy copies
+# deploy/ to /srv/<environment>/deploy and runs this script from there (see ci-deploy.sh).
 #
-#   deploy.sh deploy <commit> <registry user>   deploy ghcr.io/vsmortimer/personal-crm:<commit>;
-#                                               the registry token comes on stdin
-#   deploy.sh rollback [<commit>]               start the previous version again (by hand only)
-#   deploy.sh status                            show the containers, the running version, backups
-#   deploy.sh seed                              fill an empty database with test data
+#   deploy.sh <env> deploy <commit> <registry user>   deploy ghcr.io/vsmortimer/personal-crm:<commit>;
+#                                                     the registry token comes on stdin
+#   deploy.sh <env> rollback [<commit>]               start the previous version again (by hand only)
+#   deploy.sh <env> status                            show the containers, the running version, backups
+#   deploy.sh <env> seed                              fill an empty database with test data
+#   deploy.sh staging refresh-db                      replace the stand's database with a copy of
+#                                                     prod's newest backup (by hand only)
 #
-# A deploy backs up the database, pulls the image, applies migrations in a one-off container
-# from it, starts it and smoke-tests /health. A failed step stops the deploy, and nothing is
-# rolled back automatically: a person looks at the failure and decides whether to run `rollback`.
-# Restoring a backup is restore.sh, also by hand only.
+# A deploy checks the environment's .env, backs up the database (prod only), pulls the image,
+# applies migrations in a one-off container from it, starts it and smoke-tests /health. A failed
+# step stops the deploy, and nothing is rolled back automatically: a person looks at the failure
+# and decides whether to run `rollback`. Restoring a backup of prod is restore.sh, also by hand only.
 set -Eeuo pipefail
 
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-require_deploy_user "$@"
+use_environment "${1:-}"
+shift
+require_deploy_user "$ENVIRONMENT" "$@"
 
 IMAGE_SOURCE=https://github.com/vsmortimer/personal-crm
 
@@ -30,12 +36,16 @@ pull_image() {
     return "$status"
 }
 
-# Removes images of other versions, keeping the ones passed as arguments
+# Removes images of other versions, keeping the ones passed as arguments and the versions live
+# or previous in any environment. An image younger than an hour stays too: the other environment
+# may be deploying it this very minute, before its live-tag file says so
 remove_old_images() {
-    local tag
+    local tag created
     docker image ls "$IMAGE" --format '{{.Tag}}' | while read -r tag; do
         [[ $tag =~ ^[0-9a-f]{40}$ ]] || continue
-        case " $* " in *" $tag "*) continue ;; esac
+        case " $* $(kept_tags | tr '\n' ' ') " in *" $tag "*) continue ;; esac
+        created=$(date -d "$(docker image inspect --format '{{.Created}}' "$IMAGE:$tag")" +%s) || continue
+        [ $(($(date +%s) - created)) -ge 3600 ] || continue
         docker image rm "$IMAGE:$tag" >/dev/null && echo "removed $IMAGE:$tag" || echo "could not remove $IMAGE:$tag"
     done
     # Untagged leftovers of this app only: other images on the server are not ours
@@ -45,16 +55,22 @@ remove_old_images() {
 deploy() {
     local tag=${1:-} user=${2:-} token live
     check_tag "$tag"
-    [ -n "$user" ] || fail "usage: deploy.sh deploy <commit> <registry user>, the token on stdin"
+    [ -n "$user" ] || fail "usage: deploy.sh <env> deploy <commit> <registry user>, the token on stdin"
     IFS= read -r token || true
     [ -n "$token" ] || fail "no registry token on stdin"
     live=$(read_tag "$LIVE_FILE")
+    echo "environment: $ENVIRONMENT"
     echo "new version: $tag"
     echo "live now:    ${live:-nothing}"
 
+    step "Checking $APP_DIR/.env"
+    check_env_file
+
     step "Backup of the database"
     compose "$tag" up -d --wait --wait-timeout "$WAIT_SECONDS" db
-    if [ -n "$live" ]; then
+    if [ "$BACKUP" != yes ]; then
+        echo "no backup in $ENVIRONMENT: its database is a copy of prod's, see refresh-db"
+    elif [ -n "$live" ]; then
         # Named after the version live now: its data, before the new version's migrations
         backup_db "$live" || fail "backup failed: nothing changed, $live keeps running"
         prune_backups
@@ -75,7 +91,7 @@ deploy() {
         echo "$live" >"$PREVIOUS_FILE"
     fi
     start_app "$tag" ||
-        fail "deploy of $tag failed and nothing was rolled back. To start the previous version: deploy.sh rollback"
+        fail "deploy of $tag failed and nothing was rolled back. To start the previous version: deploy.sh $ENVIRONMENT rollback"
     echo "$tag" >"$LIVE_FILE"
 
     step "Removing old images"
@@ -105,13 +121,16 @@ rollback() {
 status() {
     local live
     live=$(read_tag "$LIVE_FILE")
+    echo "environment: $ENVIRONMENT, $APP_DOMAIN"
     echo "live:     ${live:-nothing}"
     echo "previous: $(read_tag "$PREVIOUS_FILE")"
     compose "${live:-none}" ps
     docker image ls "$IMAGE"
     curl -sS -m 10 "$HEALTH_URL" || true
     echo
-    list_backups
+    if [ "$BACKUP" = yes ]; then
+        list_backups
+    fi
 }
 
 seed() {
@@ -121,12 +140,91 @@ seed() {
     compose "$live" run --rm -T app node db-scripts/seed.cjs
 }
 
+# What a failure of refresh-db leaves behind; empty while nothing has changed
+left=""
+on_exit() {
+    local status=$?
+    [ "$status" -ne 0 ] && [ -n "$left" ] || return 0
+    echo
+    echo "REFRESH FAILED: $left"
+    echo "Nothing was undone automatically. The stand holds no data worth saving: run refresh-db again"
+}
+trap on_exit EXIT
+
+# Replaces the stand's database with prod's newest backup: the stand shows what prod would look
+# like. It only ever reads prod's backups; prod's database and app are not touched. The app
+# version stays, and its migrations run after the backup is loaded, as in restore.sh
+refresh_db() {
+    [ "$ENVIRONMENT" = staging ] || fail "refresh-db is only for staging: it never replaces the prod database"
+    local live file tables database rows answer
+    live=$(read_tag "$LIVE_FILE")
+    [ -n "$live" ] || fail "nothing is deployed on the stand yet: wait for its first deploy, then run refresh-db"
+    docker image inspect "$IMAGE:$live" >/dev/null 2>&1 || fail "$IMAGE:$live, the live version, is not on the server"
+    [ -t 0 ] || fail "refresh-db asks for confirmation: run it from a terminal, with ssh -t"
+
+    file=$(find /srv/prod/backups -maxdepth 1 -type f -name '*.dump' 2>/dev/null | sort | tail -n 1)
+    [ -n "$file" ] && [ -r "$file" ] || fail "no readable backup of prod in /srv/prod/backups: nothing changed"
+
+    step "Checking the backup"
+    compose "$live" up -d --wait --wait-timeout "$WAIT_SECONDS" db
+    tables=$(backup_tables "$file") || fail "pg_restore cannot read $file: it is not a database backup"
+    [ "$tables" -gt 0 ] || fail "$file holds no table data"
+    database=$(db_exec sh -c 'printf %s "$POSTGRES_DB"' </dev/null)
+    rows=$(row_counts) || fail "cannot count the rows of the current database"
+
+    step "refresh-db replaces the whole database of the stand"
+    echo "backup of prod:  $file"
+    echo "                 $(du -h "$file" | cut -f1), saved $(date -r "$file" '+%Y-%m-%d %H:%M'), tables with data: $tables"
+    echo "replaces:        database $database of compose project staging: it is dropped and created again"
+    echo "rows in it now:"
+    sed 's/^/                 /' <<<"$rows"
+    echo "app version:     $live, stays the same; its migrations run after the backup is loaded"
+    echo "prod:            is not touched"
+    echo
+    read -r -p 'Type yes to replace the database of the stand, anything else to stop: ' answer
+    if [ "$answer" != yes ]; then
+        echo "Nothing changed"
+        exit 1
+    fi
+
+    step "Stopping the app"
+    left="the app may be stopped, the database is as it was"
+    compose "$live" stop app
+
+    step "Dropping database $database and creating it again"
+    left="the app is stopped, the database $database may be gone or empty"
+    # Connected to template1: the database being dropped must have no sessions
+    db_exec sh -c 'psql -U "$POSTGRES_USER" -d template1 -X -q -v ON_ERROR_STOP=1 -v db="$POSTGRES_DB" -v owner="$POSTGRES_USER"' <<'SQL'
+drop database if exists :"db" with (force);
+create database :"db" owner :"owner" template template0;
+SQL
+
+    step "Loading the backup"
+    left="the app is stopped, the database $database is empty: the backup did not load"
+    # One transaction: the backup loads in full or not at all
+    db_exec sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --exit-on-error --single-transaction' <"$file"
+
+    step "Applying migrations of $live in a one-off container"
+    left="the app is stopped, the database holds the copy, but the migrations of $live failed on it"
+    compose "$live" run --rm -T app node db-scripts/migrate.cjs
+
+    step "Starting $live again"
+    left="the database holds the copy and the migrations of $live, but $live did not pass the smoke test"
+    start_app "$live" || fail "$live did not start"
+    left=""
+
+    step "Rows after the refresh"
+    row_counts | sed 's/^/  /' || echo "could not count the rows"
+    step "Done: the stand holds the copy of $(basename "$file"), $live is live"
+}
+
 command=${1:-}
 shift || true
 case "$command" in
     deploy) lock; deploy "$@" ;;
     rollback) lock; rollback "$@" ;;
     seed) lock; seed ;;
+    refresh-db) lock; refresh_db ;;
     status) status ;;
-    *) fail "usage: deploy.sh deploy <commit> <registry user> | rollback [<commit>] | status | seed" ;;
+    *) fail "usage: deploy.sh <staging|prod> deploy <commit> <registry user> | rollback [<commit>] | status | seed | refresh-db (staging)" ;;
 esac

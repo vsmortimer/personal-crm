@@ -264,7 +264,7 @@ sshd -t && echo "sshd config is valid"
 echo "sshd settings for $DEPLOY_USER:"
 sshd -T -C "user=$DEPLOY_USER,host=github.com,addr=192.0.2.1" | grep -E '^(pubkeyauthentication|passwordauthentication|permitrootlogin) '
 if [ -s "$APP_DIR/live-tag" ]; then
-    sudo -u "$DEPLOY_USER" bash "$APP_DIR/deploy/deploy.sh" status
+    sudo -u "$DEPLOY_USER" bash "$APP_DIR/deploy/deploy.sh" prod status
 fi
 curl -s -o /dev/null -m 10 -w "https://$APP_DOMAIN/health -> %{http_code} (502 until the first deploy)\n" "https://$APP_DOMAIN/health"
 chown "${SUDO_USER:-root}:" "$LOG" 2>/dev/null || true

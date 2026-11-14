@@ -1,4 +1,6 @@
-# Every push to main: build the app image, push it to GHCR tagged with the commit and deploy it.
+# Every push to main: build the app image, push it to GHCR tagged with the commit, then deploy that
+# same image to the test stand and to prod. The two deploys are independent: neither waits for the
+# other, and one failing does not stop the other.
 # The deploy itself lives in deploy/: ci-deploy.sh runs here, deploy.sh on the server.
 name: Deploy
 
@@ -7,23 +9,22 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Deploys run one after another, a newer push never cancels a deploy halfway
-concurrency:
-  group: deploy
-  cancel-in-progress: false
-
-permissions:
-  contents: read
-  # Push the image; the server pulls it with this job's token
-  packages: write
-
 env:
   IMAGE: ghcr.io/vsmortimer/personal-crm
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      contents: read
+      # Push the image
+      packages: write
+    # Builds go one after another, in the order of the pushes: a newer commit never reaches a
+    # deploy before an older one. A newer push never cancels a build halfway
+    concurrency:
+      group: deploy-build
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -37,10 +38,50 @@ jobs:
             --tag "$IMAGE:$GITHUB_SHA" .
           docker push "$IMAGE:$GITHUB_SHA"
 
-      - name: Deploy to the server
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # The server pulls the image with this job's token. Write, as it was before the stand:
+      # prod deploys as it always did
+      packages: write
+    # Two deploys to the stand never run at the same time; a newer one waits for the one running
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Deploy to the test stand
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash deploy/ci-deploy.sh
+        run: bash deploy/ci-deploy.sh staging
+
+  deploy-prod:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # The server pulls the image with this job's token. Write, as it was before the stand:
+      # prod deploys as it always did
+      packages: write
+    # Two deploys to prod never run at the same time; a newer one waits for the one running
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Deploy to prod
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash deploy/ci-deploy.sh prod
