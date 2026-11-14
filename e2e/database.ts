@@ -29,13 +29,18 @@ async function withDatabase(run: (sql: postgres.Sql) => Promise<void>) {
 // The person whose contacts the tests start from; the tests sign in as them
 export const OWNER_EMAIL = "owner@example.com";
 
-// A contact to start from: a name alone means no frequency, added just now
+// A contact to start from: a name alone means no frequency, no birth date,
+// added just now
 export type SeedContact =
   | string
   | {
       name: string;
       contactFrequency?: ContactFrequency;
       createdAt?: Date;
+      // The year is optional; day and month go together
+      birth?: { day: number; month: number; year?: number };
+      // Names of the groups the contact is in; a group is made on first mention
+      groups?: string[];
     };
 
 // Empties the database and the mailbox of Mailpit, and adds the owner
@@ -55,10 +60,22 @@ export async function resetDatabase({ contacts }: { contacts: SeedContact[] }) {
         name,
         contactFrequency = null,
         createdAt,
+        birth,
+        groups = [],
       } = typeof contact === "string" ? { name: contact } : contact;
-      await sql`
-        insert into contacts (user_id, name, contact_frequency, created_at, updated_at)
-        values (${owner.id}, ${name}, ${contactFrequency}, ${createdAt ?? sql`now()`}, ${createdAt ?? sql`now()`})`;
+      const [{ id: contactId }] = await sql<{ id: number }[]>`
+        insert into contacts (user_id, name, contact_frequency, birth_day, birth_month, birth_year, created_at, updated_at)
+        values (${owner.id}, ${name}, ${contactFrequency}, ${birth?.day ?? null}, ${birth?.month ?? null}, ${birth?.year ?? null}, ${createdAt ?? sql`now()`}, ${createdAt ?? sql`now()`})
+        returning id`;
+      for (const groupName of groups) {
+        await sql`
+          insert into groups (user_id, name) values (${owner.id}, ${groupName})
+          on conflict do nothing`;
+        await sql`
+          insert into contact_groups (contact_id, group_id)
+          select ${contactId}, id from groups
+          where user_id = ${owner.id} and lower(name) = lower(${groupName})`;
+      }
     }
   });
 }

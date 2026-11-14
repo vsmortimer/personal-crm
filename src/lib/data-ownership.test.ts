@@ -20,11 +20,11 @@ import {
   createContact,
   deleteContact,
   getContact,
+  listBirthdayContacts,
   listContacts,
   listDueContacts,
   listNotes,
   updateContact,
-  type ContactInput,
 } from "@/lib/contacts";
 import {
   deleteGroup,
@@ -39,6 +39,7 @@ import {
   insertGroup,
   insertNote,
   insertUser,
+  contactInput as input,
 } from "../../test/helpers";
 
 // The person the actions work for. Vitest has no request with a cookie, so
@@ -61,17 +62,6 @@ let boris: string;
 // Анна's data, which Борис must not see or touch
 let annasContact: number;
 let annasGroup: number;
-
-function input(name: string): ContactInput {
-  return {
-    name,
-    about: null,
-    howWeMet: null,
-    phone: null,
-    email: null,
-    contactFrequency: null,
-  };
-}
 
 const noGroups = { groupIds: [], newGroups: [] };
 
@@ -112,6 +102,19 @@ describe("what a person sees", () => {
   test("Борис has no «Пора связаться» when only Анна has an overdue contact", async () => {
     expect(await listDueContacts(boris)).toEqual([]);
     expect(await listDueContacts(anna)).toHaveLength(1);
+  });
+
+  // Scenario: «Скоро день рождения»
+  test("Борис has no «Скоро день рождения» when only Анна has a birthday tomorrow", async () => {
+    const today = new Date("2026-11-14T12:00:00+03:00");
+    await insertContact(anna, "Иван Петров", {
+      birth: { birthDay: 15, birthMonth: 11 },
+    });
+
+    expect(await listBirthdayContacts(boris, today)).toEqual([]);
+    expect(
+      (await listBirthdayContacts(anna, today)).map((entry) => entry.listName),
+    ).toEqual(["Петров Иван"]);
   });
 
   // Scenario: «Группы и фильтр»

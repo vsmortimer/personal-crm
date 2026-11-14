@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { postgresErrorCode } from "@/db/errors";
 import { contactGroups, contacts, groups, notes, users } from "@/db/schema";
 import type { ContactFrequency } from "@/lib/contact-frequency";
+import type { ContactInput } from "@/lib/contacts";
 
 export {
   CHECK_VIOLATION,
@@ -32,18 +33,31 @@ export async function insertUser(email: string) {
   return user.id;
 }
 
-// Without the options: no contact frequency, added just now
+// The birth date as the database keeps it: day and month go together, the
+// year is optional
+export type Birth = {
+  birthDay: number | null;
+  birthMonth: number | null;
+  birthYear?: number | null;
+};
+
+// Without the options: no contact frequency, no birth date, added just now
 export async function insertContact(
   userId: string,
   name: string,
   {
     contactFrequency = null,
     createdAt,
-  }: { contactFrequency?: ContactFrequency | null; createdAt?: Date } = {},
+    birth,
+  }: {
+    contactFrequency?: ContactFrequency | null;
+    createdAt?: Date;
+    birth?: Birth;
+  } = {},
 ) {
   const [contact] = await db
     .insert(contacts)
-    .values({ userId, name, contactFrequency, createdAt })
+    .values({ userId, name, contactFrequency, createdAt, ...birth })
     .returning({ id: contacts.id });
   return contact.id;
 }
@@ -67,4 +81,24 @@ export async function insertGroup(userId: string, name: string) {
 
 export async function addToGroup(contactId: number, groupId: number) {
   await db.insert(contactGroups).values({ contactId, groupId });
+}
+
+// What the contact form sends to createContact and updateContact: a name and
+// nothing else, unless the fields say otherwise
+export function contactInput(
+  name: string,
+  fields: Partial<ContactInput> = {},
+): ContactInput {
+  return {
+    name,
+    about: null,
+    howWeMet: null,
+    phone: null,
+    email: null,
+    contactFrequency: null,
+    birthDay: null,
+    birthMonth: null,
+    birthYear: null,
+    ...fields,
+  };
 }

@@ -11,6 +11,7 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,6 +19,7 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { MONTH_NAMES } from "@/lib/birthday";
 import {
   CONTACT_FREQUENCIES,
   CONTACT_FREQUENCY_LABELS,
@@ -70,6 +72,14 @@ export function ContactForm({
     autoFocus: field === firstInvalid,
     "aria-invalid": state.errors[field] ? true : undefined,
     "aria-describedby": state.errors[field] ? `${field}-error` : undefined,
+  });
+
+  // The date's three parts share one error line under all of them, which the
+  // group of fields is described by, so the parts have no description of their own
+  const birthFieldProps = (field: ContactField) => ({
+    ...fieldProps(field),
+    "aria-invalid": state.errors.birthDay ? true : undefined,
+    "aria-describedby": undefined,
   });
 
   const error = (field: ContactField) =>
@@ -170,6 +180,59 @@ export function ContactForm({
             {error("contactFrequency")}
           </Field>
         </div>
+
+        <FieldSet
+          className="gap-3"
+          data-invalid={!!state.errors.birthDay}
+          aria-describedby={
+            state.errors.birthDay ? "birthDate-error" : undefined
+          }
+        >
+          <legend className="mb-1 text-xs leading-none font-medium tracking-widest text-muted-foreground uppercase">
+            Дата рождения
+          </legend>
+          {/* On a phone the year goes to a row of its own: three selects do not fit in a row there */}
+          <div className="grid grid-cols-2 gap-3 sm:max-w-md sm:grid-cols-[1fr_2fr_1fr]">
+            <NativeSelect
+              {...birthFieldProps("birthDay")}
+              aria-label="День"
+              className="w-full"
+            >
+              <NativeSelectOption value="">День</NativeSelectOption>
+              {Array.from({ length: 31 }, (_, index) => (
+                <NativeSelectOption key={index} value={String(index + 1)}>
+                  {index + 1}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <NativeSelect
+              {...birthFieldProps("birthMonth")}
+              aria-label="Месяц"
+              className="w-full"
+            >
+              <NativeSelectOption value="">Месяц</NativeSelectOption>
+              {MONTH_NAMES.map((name, index) => (
+                <NativeSelectOption key={name} value={String(index + 1)}>
+                  {name}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <Input
+              {...birthFieldProps("birthYear")}
+              aria-label="Год"
+              placeholder="Год"
+              inputMode="numeric"
+              maxLength={4}
+              autoComplete="off"
+              className="col-span-2 sm:col-span-1"
+            />
+          </div>
+          {state.errors.birthDay && (
+            <FieldError id="birthDate-error">
+              {state.errors.birthDay}
+            </FieldError>
+          )}
+        </FieldSet>
 
         <ContactGroupsField
           groups={groups}

@@ -1,12 +1,14 @@
 // The contact form's server action, on a save that fails the checks
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { createContactAction } from "@/app/actions";
+import { eq } from "drizzle-orm";
+
+import { createContactAction, updateContactAction } from "@/app/actions";
 import { db } from "@/db";
 import { contacts } from "@/db/schema";
 import { emptyContactValues, type ContactFormState } from "@/lib/validation";
 import { captureErrorLog } from "../../test/captured-log";
-import { insertUser } from "../../test/helpers";
+import { insertContact, insertUser } from "../../test/helpers";
 
 // Vitest has no request with a cookie, so the signed-in person is set here.
 // Nothing else is replaced: the actions work with the real database.
@@ -51,6 +53,80 @@ test("a wrong email keeps the chosen frequency in the form", async () => {
   // The form remounts with these values
   expect(state.version).toBe(1);
   expect(await db.select().from(contacts)).toEqual([]);
+});
+
+// Scenario: «Ошибка в другом поле» (birthdays)
+test("a wrong email keeps the chosen birth date in the form", async () => {
+  const sent = new FormData();
+  sent.set("name", "Анна Смирнова");
+  sent.set("email", "anna@");
+  sent.set("birthDay", "21");
+  sent.set("birthMonth", "11");
+  sent.set("birthYear", "1990");
+
+  const state = await createContactAction(initialState, sent);
+
+  expect(state.errors).toEqual({
+    email: "Проверьте адрес почты, например: name@mail.ru",
+  });
+  expect(state.values).toMatchObject({
+    birthDay: "21",
+    birthMonth: "11",
+    birthYear: "1990",
+  });
+  expect(await db.select().from(contacts)).toEqual([]);
+});
+
+// Scenario: «Подделанный запрос»: the form lets none of these through, so
+// they can only come from a forged request
+describe("a forged request with a wrong birth date", () => {
+  const forged = [
+    ["month 13", { birthDay: "1", birthMonth: "13" }],
+    ["a day without a month", { birthDay: "21", birthMonth: "" }],
+    ["April 31", { birthDay: "31", birthMonth: "4" }],
+  ] as const;
+
+  function sentWith(birth: Record<string, string>) {
+    const sent = new FormData();
+    sent.set("name", "Анна Смирнова");
+    for (const [field, value] of Object.entries(birth)) {
+      sent.set(field, value);
+    }
+    return sent;
+  }
+
+  test.each(forged)("%s: a new contact is not saved", async (_name, birth) => {
+    const state = await createContactAction(initialState, sentWith(birth));
+
+    expect(state.errors.birthDay).toBeTruthy();
+    expect(await db.select().from(contacts)).toEqual([]);
+  });
+
+  test.each(forged)(
+    "%s: the date of an existing contact stays as it was",
+    async (_name, birth) => {
+      const id = await insertContact(signedIn.id, "Анна Смирнова", {
+        birth: { birthDay: 21, birthMonth: 11, birthYear: 1990 },
+      });
+
+      const state = await updateContactAction(
+        id,
+        initialState,
+        sentWith(birth),
+      );
+
+      expect(state.errors.birthDay).toBeTruthy();
+      const [saved] = await db
+        .select({
+          birthDay: contacts.birthDay,
+          birthMonth: contacts.birthMonth,
+          birthYear: contacts.birthYear,
+        })
+        .from(contacts)
+        .where(eq(contacts.id, id));
+      expect(saved).toEqual({ birthDay: 21, birthMonth: 11, birthYear: 1990 });
+    },
+  );
 });
 
 // The save fails in the database (the person does not exist): the form says

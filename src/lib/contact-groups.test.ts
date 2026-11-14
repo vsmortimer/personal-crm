@@ -2,11 +2,7 @@
 // and reading the groups back (listGroups / listContactGroups)
 import { describe, expect, test, beforeEach } from "vitest";
 
-import {
-  createContact,
-  updateContact,
-  type ContactInput,
-} from "@/lib/contacts";
+import { createContact, updateContact } from "@/lib/contacts";
 import { addGroup } from "@/lib/group-form";
 import { listContactGroups, listGroups } from "@/lib/groups";
 import {
@@ -14,6 +10,7 @@ import {
   insertContact,
   insertGroup,
   insertUser,
+  contactInput as contact,
 } from "../../test/helpers";
 
 // The person whose contacts and groups the tests work with
@@ -22,17 +19,6 @@ let owner: string;
 beforeEach(async () => {
   owner = await insertUser("owner@mail.ru");
 });
-
-function contact(name: string): ContactInput {
-  return {
-    name,
-    about: null,
-    howWeMet: null,
-    phone: null,
-    email: null,
-    contactFrequency: null,
-  };
-}
 
 const noGroups = { groupIds: [], newGroups: [] };
 

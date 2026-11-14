@@ -64,6 +64,9 @@ async function EditContact({ rawId }: { rawId: string }) {
               phone: contact.phone ?? "",
               email: contact.email ?? "",
               contactFrequency: contact.contactFrequency ?? "",
+              birthDay: String(contact.birthDay ?? ""),
+              birthMonth: String(contact.birthMonth ?? ""),
+              birthYear: String(contact.birthYear ?? ""),
             }}
             groups={groups.map(({ id, name }) => ({ id, name }))}
             initialGroupIds={contactGroups.map((group) => group.id)}

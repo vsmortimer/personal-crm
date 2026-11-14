@@ -4,6 +4,7 @@
 import { count, eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
+import { moscowToday } from "../lib/birthday";
 import { CONTACT_FREQUENCIES } from "../lib/contact-frequency";
 import { normalizeEmail } from "../lib/email";
 import * as schema from "./schema";
@@ -41,6 +42,47 @@ function pickFrequency() {
   return CONTACT_FREQUENCIES[
     Math.floor(frequencyRandom() * CONTACT_FREQUENCIES.length)
   ];
+}
+
+// A separate generator as well: about 60% of the contacts have a birth date,
+// and 70% of those a year
+let birthRandom = createRandom(20261114);
+type Birth = Pick<NewContact, "birthDay" | "birthMonth" | "birthYear">;
+// Days in the months of a leap year, so that February 29 may come up too
+const MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+function pickBirth(): Birth {
+  const hasDate = birthRandom() < 0.6;
+  const month = 1 + Math.floor(birthRandom() * 12);
+  const day = 1 + Math.floor(birthRandom() * MONTH_DAYS[month - 1]);
+  const year = 1950 + Math.floor(birthRandom() * 56);
+  const hasYear = birthRandom() < 0.7;
+  if (!hasDate) return { birthDay: null, birthMonth: null, birthYear: null };
+  // February 29 only in a leap year, or the database's check would not hold
+  const valid = !(month === 2 && day === 29) || isLeapYear(year);
+  return {
+    birthDay: valid ? day : 28,
+    birthMonth: month,
+    birthYear: hasYear ? year : null,
+  };
+}
+
+function isLeapYear(year: number) {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+// The first contacts have a birthday today, tomorrow and so on, so that the
+// «Скоро день рождения» block has people in it whenever the data is made
+const SOON_BIRTHDAY_DAYS = [0, 1, 2, 4, 7] as const;
+function soonBirth(now: number, daysAhead: number): Birth {
+  const today = moscowToday(new Date(now));
+  const date = new Date(
+    Date.UTC(today.year, today.month - 1, today.day + daysAhead),
+  );
+  return {
+    birthDay: date.getUTCDate(),
+    birthMonth: date.getUTCMonth() + 1,
+    birthYear: 1970 + Math.floor(birthRandom() * 30),
+  };
 }
 
 const GROUP_NAMES = [
@@ -639,6 +681,9 @@ function generateContacts(now: number) {
         email: chance(0.75) ? makeEmail(firstName, surname, usedEmails) : null,
         // About a third of the contacts, so the home page has people to catch up with
         contactFrequency: pickFrequency(),
+        ...(result.length < SOON_BIRTHDAY_DAYS.length
+          ? soonBirth(now, SOON_BIRTHDAY_DAYS[result.length])
+          : pickBirth()),
         createdAt,
         updatedAt,
       },
@@ -657,6 +702,7 @@ function resetRandom() {
   random = createRandom(20261010);
   frequencyRandom = createRandom(20261020);
   groupRandom = createRandom(20261031);
+  birthRandom = createRandom(20261114);
 }
 
 export type SeedResult =
