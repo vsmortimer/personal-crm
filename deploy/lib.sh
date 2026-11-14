@@ -11,7 +11,11 @@
 
 IMAGE=ghcr.io/vsmortimer/personal-crm
 WAIT_SECONDS=120
-KEEP_BACKUPS=10
+# Backups kept of each kind: the daily ones (-daily.dump) and the ones taken before a deploy or a
+# restore (everything else)
+KEEP_BACKUPS=7
+# Images of other versions are removed once they are older than this (days since they were built)
+KEEP_IMAGE_DAYS=14
 ENVIRONMENTS="staging prod"
 
 step() { printf '\n=== %s\n' "$*"; }
@@ -45,8 +49,8 @@ use_environment() {
     # The version that last passed the smoke test, and the one live before the last deploy
     LIVE_FILE=$APP_DIR/live-tag
     PREVIOUS_FILE=$APP_DIR/previous-tag
-    # Every prod deploy and every restore saves the database here first; deploys keep the
-    # newest ones. The stand has no backups of its own: its database is a copy of prod's
+    # Prod's database is saved here every night, before every deploy and before every restore.
+    # The stand has no backups of its own: its database is a copy of prod's
     BACKUP_DIR=$APP_DIR/backups
 }
 
@@ -110,13 +114,12 @@ check_env_file() {
     done
 }
 
-# Versions live or previous in any environment: the image is shared by the environments of this
-# server, so cleaning up after one of them must not take the other's version away
+# Versions that stay on the server whatever their age: the live and the previous version of prod
+# (rollback goes to the previous one) and the live version of the stand. The image is shared by
+# the environments of this server, so cleaning up after one must not take the other's version away
 kept_tags() {
-    local env
-    for env in $ENVIRONMENTS; do
-        printf '%s\n%s\n' "$(read_tag "/srv/$env/live-tag")" "$(read_tag "/srv/$env/previous-tag")"
-    done
+    printf '%s\n%s\n%s\n' "$(read_tag /srv/prod/live-tag)" "$(read_tag /srv/prod/previous-tag)" \
+        "$(read_tag /srv/staging/live-tag)"
 }
 
 health_matches() {
@@ -171,13 +174,17 @@ backup_db() {
     echo "saved $file: $(du -h "$file" | cut -f1), tables with data: $tables"
 }
 
-# Keeps the newest KEEP_BACKUPS backups. Runs under the lock, so a .partial file is a leftover
+# Keeps the newest KEEP_BACKUPS backups of each kind: the daily ones and the rest. Runs under the
+# lock, so a .partial file is a leftover
 prune_backups() {
     local file
-    find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' | sort -r | tail -n +$((KEEP_BACKUPS + 1)) |
-        while read -r file; do
-            rm -f "$file" && echo "removed old backup $(basename "$file")"
-        done
+    {
+        find "$BACKUP_DIR" -maxdepth 1 -type f -name '*-daily.dump' | sort -r | tail -n +$((KEEP_BACKUPS + 1))
+        find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' ! -name '*-daily.dump' | sort -r |
+            tail -n +$((KEEP_BACKUPS + 1))
+    } | while read -r file; do
+        rm -f "$file" && echo "removed old backup $(basename "$file")"
+    done
     find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.partial' -print -delete | sed 's/^/removed leftover /'
 }
 

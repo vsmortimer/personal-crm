@@ -1,0 +1,83 @@
+# Deploys prod. Started by hand only: Actions -> Deploy prod -> Run workflow. Merging into main
+# never touches prod.
+#   sha empty, rollback off: the commit of the last green run of Deploy staging
+#   sha filled in:           that commit, if it passed the test stand (a fallback)
+#   rollback on:             the version prod ran before the current one, which the server
+#                            remembers; the test stand is not checked and sha is ignored
+# The steps live in deploy/: this file only calls them.
+name: Deploy prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full commit hash. Empty: the last green deploy to the test stand"
+        required: false
+        type: string
+      rollback:
+        description: "Roll back to the version before the current one (sha is ignored)"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  # Every step reads the same values; inputs are passed through the environment, never pasted
+  # into a script
+  INPUT_SHA: ${{ inputs.sha }}
+  INPUT_ROLLBACK: ${{ inputs.rollback }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # The scripts come from the branch the button was pressed on: only main is trusted
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      # The server pulls the image with this job's token
+      packages: write
+      # Reads the history of Deploy staging runs
+      actions: read
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+    # Two deploys to prod never run at the same time; a newer one waits for the one running
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Choose the version
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash deploy/ci-resolve-sha.sh
+
+      - name: Deploy to prod
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODE: ${{ steps.resolve.outputs.mode }}
+          SHA: ${{ steps.resolve.outputs.sha }}
+        run: bash deploy/ci-deploy.sh prod "$MODE" "$SHA"
+
+  # After a successful deploy only. Apart from the deploy: if the cleanup fails, the deploy is
+  # still green and the failure is easy to see
+  prune-ghcr:
+    needs: deploy
+    if: inputs.rollback != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Keep the 10 newest images in GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.deploy.outputs.sha }}
+        run: bash deploy/ci-prune-ghcr.sh "$SHA"

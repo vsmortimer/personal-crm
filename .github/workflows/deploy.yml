@@ -1,8 +1,8 @@
-# Every push to main: build the app image, push it to GHCR tagged with the commit, then deploy that
-# same image to the test stand and to prod. The two deploys are independent: neither waits for the
-# other, and one failing does not stop the other.
+# Every push to main: build the app image, push it to GHCR tagged with the commit, then deploy it
+# to the test stand. Prod is not deployed here: only the Deploy prod workflow does that, started
+# by hand, and it takes the commit of the last green run of this workflow.
 # The deploy itself lives in deploy/: ci-deploy.sh runs here, deploy.sh on the server.
-name: Deploy
+name: Deploy staging
 
 on:
   push:
@@ -44,8 +44,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-      # The server pulls the image with this job's token. Write, as it was before the stand:
-      # prod deploys as it always did
+      # The server pulls the image with this job's token
       packages: write
     # Two deploys to the stand never run at the same time; a newer one waits for the one running
     concurrency:
@@ -60,28 +59,4 @@ jobs:
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash deploy/ci-deploy.sh staging
-
-  deploy-prod:
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      # The server pulls the image with this job's token. Write, as it was before the stand:
-      # prod deploys as it always did
-      packages: write
-    # Two deploys to prod never run at the same time; a newer one waits for the one running
-    concurrency:
-      group: deploy-prod
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Deploy to prod
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash deploy/ci-deploy.sh prod
+        run: bash deploy/ci-deploy.sh staging deploy "$GITHUB_SHA"
