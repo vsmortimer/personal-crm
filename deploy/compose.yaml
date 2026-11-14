@@ -24,12 +24,13 @@ x-login-settings: &login-settings
   MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM in .env}
   OWNER_EMAIL: ${OWNER_EMAIL:?set OWNER_EMAIL in .env}
 
-# Logs of each container take at most 3 files of 10 MB
+# Logs of the containers go to the server's journal (journald), not to files of the container:
+# they stay after the container is recreated or removed, which every deploy and rollback does,
+# and so do the lines of the one-off migration container. The system limits the size of the
+# journal and deletes its oldest lines itself. Each service adds its own tag (<project>-app,
+# <project>-db), the name to read its lines by: journalctl -t prod-app
 x-logging: &logging
-  driver: json-file
-  options:
-    max-size: 10m
-    max-file: "3"
+  driver: journald
 
 services:
   db:
@@ -43,7 +44,10 @@ services:
     volumes:
       # Postgres 18+ images keep data under /var/lib/postgresql/<major>/docker
       - db-data:/var/lib/postgresql
-    logging: *logging
+    logging:
+      <<: *logging
+      options:
+        tag: ${COMPOSE_PROJECT_NAME:-prod}-db
     healthcheck:
       test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
@@ -67,7 +71,10 @@ services:
       - "127.0.0.1:${APP_PORT:-3000}:3000"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    logging: *logging
+    logging:
+      <<: *logging
+      options:
+        tag: ${COMPOSE_PROJECT_NAME:-prod}-app
     healthcheck:
       test:
         [
