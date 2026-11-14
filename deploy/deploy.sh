@@ -7,15 +7,17 @@
 #   deploy.sh <env> deploy <commit> <registry user>   deploy ghcr.io/vsmortimer/personal-crm:<commit>;
 #                                                     the registry token comes on stdin
 #   deploy.sh <env> rollback [<commit>]               start the previous version again (by hand only)
+#   deploy.sh prod backup                             back up the database (the nightly timer runs it)
 #   deploy.sh <env> status                            show the containers, the running version, backups
 #   deploy.sh <env> seed                              fill an empty database with test data
 #   deploy.sh staging refresh-db                      replace the stand's database with a copy of
 #                                                     prod's newest backup (by hand only)
 #
 # A deploy checks the environment's .env, backs up the database (prod only), pulls the image,
-# applies migrations in a one-off container from it, starts it and smoke-tests /health. A failed
-# step stops the deploy, and nothing is rolled back automatically: a person looks at the failure
-# and decides whether to run `rollback`. Restoring a backup of prod is restore.sh, also by hand only.
+# applies migrations in a one-off container from it, starts it and smoke-tests /health; on prod it
+# then removes images older than two weeks. A failed step stops the deploy, and nothing is rolled
+# back automatically: a person looks at the failure and decides whether to run `rollback`.
+# Restoring a backup of prod is restore.sh, also by hand only.
 set -Eeuo pipefail
 
 # shellcheck source=lib.sh
@@ -36,16 +38,16 @@ pull_image() {
     return "$status"
 }
 
-# Removes images of other versions, keeping the ones passed as arguments and the versions live
-# or previous in any environment. An image younger than an hour stays too: the other environment
-# may be deploying it this very minute, before its live-tag file says so
+# Removes images of other versions that were built more than KEEP_IMAGE_DAYS days ago, except the
+# live and previous versions of prod and the live version of the stand (kept_tags). Only after a
+# successful prod deploy: that is when the next rollback target is known
 remove_old_images() {
     local tag created
     docker image ls "$IMAGE" --format '{{.Tag}}' | while read -r tag; do
         [[ $tag =~ ^[0-9a-f]{40}$ ]] || continue
         case " $* $(kept_tags | tr '\n' ' ') " in *" $tag "*) continue ;; esac
         created=$(date -d "$(docker image inspect --format '{{.Created}}' "$IMAGE:$tag")" +%s) || continue
-        [ $(($(date +%s) - created)) -ge 3600 ] || continue
+        [ $(($(date +%s) - created)) -ge $((KEEP_IMAGE_DAYS * 86400)) ] || continue
         docker image rm "$IMAGE:$tag" >/dev/null && echo "removed $IMAGE:$tag" || echo "could not remove $IMAGE:$tag"
     done
     # Untagged leftovers of this app only: other images on the server are not ours
@@ -94,8 +96,10 @@ deploy() {
         fail "deploy of $tag failed and nothing was rolled back. To start the previous version: deploy.sh $ENVIRONMENT rollback"
     echo "$tag" >"$LIVE_FILE"
 
-    step "Removing old images"
-    remove_old_images "$tag" "$(read_tag "$PREVIOUS_FILE")"
+    if [ "$ENVIRONMENT" = prod ]; then
+        step "Removing images older than $KEEP_IMAGE_DAYS days"
+        remove_old_images "$tag" "$(read_tag "$PREVIOUS_FILE")"
+    fi
 
     step "Done: $tag is live"
 }
@@ -116,6 +120,19 @@ rollback() {
     start_app "$tag" || fail "rollback to $tag failed"
     echo "$tag" >"$LIVE_FILE"
     step "Done: $tag is live"
+}
+
+# Daily backup of prod's database, started by the systemd timer crm-backup (setup-daily-backup.sh).
+# It does not start anything: with the database not running there is nothing to back up, and the
+# failure is in the journal and in the date of the newest backup in `status`
+daily_backup() {
+    [ "$BACKUP" = yes ] || fail "backup is only for prod: the stand's database is a copy of prod's"
+    local live
+    live=$(read_tag "$LIVE_FILE")
+    [ -n "$live" ] || fail "nothing is deployed yet: no data to back up"
+    step "Daily backup of the database of $ENVIRONMENT"
+    backup_db "$live" daily || fail "daily backup failed"
+    prune_backups
 }
 
 status() {
@@ -224,7 +241,8 @@ case "$command" in
     deploy) lock; deploy "$@" ;;
     rollback) lock; rollback "$@" ;;
     seed) lock; seed ;;
+    backup) lock; daily_backup ;;
     refresh-db) lock; refresh_db ;;
     status) status ;;
-    *) fail "usage: deploy.sh <staging|prod> deploy <commit> <registry user> | rollback [<commit>] | status | seed | refresh-db (staging)" ;;
+    *) fail "usage: deploy.sh <staging|prod> deploy <commit> <registry user> | rollback [<commit>] | status | seed | backup (prod) | refresh-db (staging)" ;;
 esac
