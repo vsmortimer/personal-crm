@@ -15,6 +15,7 @@ import { cache } from "react";
 
 import { db } from "@/db";
 import { contacts, notes } from "@/db/schema";
+import { BIRTHDAY_SOON_DAYS, nextBirthday } from "@/lib/birthday";
 import type { ContactFrequency } from "@/lib/contact-frequency";
 import { setContactGroups } from "@/lib/groups";
 import type { ContactGroupsInput } from "@/lib/validation";
@@ -26,6 +27,10 @@ export type ContactInput = {
   phone: string | null;
   email: string | null;
   contactFrequency: ContactFrequency | null;
+  // Day and month go together; the year is optional
+  birthDay: number | null;
+  birthMonth: number | null;
+  birthYear: number | null;
 };
 
 // Case-insensitive and treats "ё" as "е", so "семен" finds "Семён"
@@ -183,6 +188,52 @@ export async function listDueContacts(userId: string, now?: Date) {
 }
 
 export type DueContact = Awaited<ReturnType<typeof listDueContacts>>[number];
+
+// Contacts whose birthday is today or in the next BIRTHDAY_SOON_DAYS days,
+// the nearest first. The dates are counted in code, not in SQL: February 29
+// and the turn of the year are easier to get right and to test there, and one
+// person has hundreds of contacts, not millions. `now` lets tests set the
+// clock.
+export async function listBirthdayContacts(userId: string, now = new Date()) {
+  await connection();
+
+  const withBirthday = await db
+    .select({
+      id: contacts.id,
+      listName: listName.as("list_name"),
+      birthDay: contacts.birthDay,
+      birthMonth: contacts.birthMonth,
+      birthYear: contacts.birthYear,
+    })
+    .from(contacts)
+    .where(and(eq(contacts.userId, userId), isNotNull(contacts.birthDay)))
+    // The same order as the contact list; a birthday on the same day keeps it
+    .orderBy(
+      sql`${surname} collate "ru-x-icu"`,
+      sql`${listName} collate "ru-x-icu"`,
+      contacts.id,
+    );
+
+  return (
+    withBirthday
+      .map(({ id, listName, birthDay, birthMonth, birthYear }) => ({
+        id,
+        listName,
+        // The day and the month go together (a check in the database)
+        next: nextBirthday(
+          { day: birthDay!, month: birthMonth!, year: birthYear },
+          now,
+        ),
+      }))
+      .filter(({ next }) => next.daysLeft <= BIRTHDAY_SOON_DAYS)
+      // The sort is stable: the order by surname stays within one day
+      .sort((a, b) => a.next.daysLeft - b.next.daysLeft)
+  );
+}
+
+export type BirthdayContact = Awaited<
+  ReturnType<typeof listBirthdayContacts>
+>[number];
 
 // cache() dedupes the query between the page and its metadata within one request
 export const getContact = cache(async (userId: string, id: number) => {

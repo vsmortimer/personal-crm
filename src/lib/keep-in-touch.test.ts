@@ -12,9 +12,13 @@ import {
   createContact,
   listDueContacts,
   updateContact,
-  type ContactInput,
 } from "@/lib/contacts";
-import { insertContact, insertNote, insertUser } from "../../test/helpers";
+import {
+  contactInput as contact,
+  insertContact,
+  insertNote,
+  insertUser,
+} from "../../test/helpers";
 
 // The person whose contacts and groups the tests work with
 let owner: string;
@@ -27,18 +31,6 @@ const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
 const noGroups = { groupIds: [], newGroups: [] };
-
-function contact(name: string, fields: Partial<ContactInput> = {}) {
-  return {
-    name,
-    about: null,
-    howWeMet: null,
-    phone: null,
-    email: null,
-    contactFrequency: null,
-    ...fields,
-  } satisfies ContactInput;
-}
 
 function daysBefore(moment: Date, days: number) {
   return new Date(moment.getTime() - days * DAY);

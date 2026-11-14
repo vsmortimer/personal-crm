@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Plus } from "lucide-react";
 
 import { deleteGroupAction, renameGroupAction } from "@/app/actions";
+import { BirthdayContacts } from "@/components/birthday-contacts";
 import { ContactList } from "@/components/contact-list";
 import { ContactSearch } from "@/components/contact-search";
 import { DueContacts } from "@/components/due-contacts";
@@ -12,7 +13,11 @@ import { GroupHeader } from "@/components/group-header";
 import { ScrollIntoView } from "@/components/scroll-into-view";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listContacts, listDueContacts } from "@/lib/contacts";
+import {
+  listBirthdayContacts,
+  listContacts,
+  listDueContacts,
+} from "@/lib/contacts";
 import { listGroups, selectedGroup, type GroupListItem } from "@/lib/groups";
 import { parseContactId, pluralize } from "@/lib/format";
 import { requireUser } from "@/lib/session";
@@ -72,19 +77,25 @@ async function ContactsSection({
   const groups = await listGroups(user.id);
   const group = selectedGroup(groups, params.group);
 
-  // Loaded together, so the block, the search and the list appear at once
-  // and the search field does not jump down when the block arrives.
-  // The block is the same whatever group is selected.
-  const [{ contacts, total }, dueContacts] = await Promise.all([
-    listContacts(user.id, query, group?.id ?? null),
-    listDueContacts(user.id),
-  ]);
+  // Loaded together, so the blocks, the search and the list appear at once
+  // and the search field does not jump down when a block arrives.
+  // The blocks are the same whatever group is selected.
+  const [{ contacts, total }, birthdayContacts, dueContacts] =
+    await Promise.all([
+      listContacts(user.id, query, group?.id ?? null),
+      listBirthdayContacts(user.id),
+      listDueContacts(user.id),
+    ]);
   const added = addedId
     ? contacts.find((contact) => contact.id === addedId)
     : undefined;
 
   return (
     <>
+      {birthdayContacts.length > 0 && (
+        <BirthdayContacts contacts={birthdayContacts} />
+      )}
+
       {dueContacts.length > 0 && <DueContacts contacts={dueContacts} />}
 
       <ContactSearch query={query} groupId={group?.id ?? null} />

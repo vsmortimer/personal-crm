@@ -48,8 +48,9 @@ test("after the deploy every existing contact has no frequency, and contacts and
       await migrator.end();
     }
 
-    // The only changes: the new empty frequency, i.e. «Не задано», and the
-    // owner that all the existing contacts get
+    // The only changes: the new empty frequency, i.e. «Не задано», the
+    // owner that all the existing contacts get and the empty birth date
+    // (birthdays: «Первое открытие после выкатки»)
     const [owner] =
       await sql`select id from users where email = ${OWNER_EMAIL}`;
     expect(await rows(sql`select * from contacts order by id`)).toEqual(
@@ -57,6 +58,9 @@ test("after the deploy every existing contact has no frequency, and contacts and
         ...contact,
         contact_frequency: null,
         user_id: owner.id,
+        birth_day: null,
+        birth_month: null,
+        birth_year: null,
       })),
     );
     expect(await rows(sql`select * from notes order by id`)).toEqual(

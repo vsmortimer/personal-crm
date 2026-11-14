@@ -11,6 +11,7 @@ import {
   insertNote,
   insertUser,
   UNIQUE_VIOLATION,
+  type Birth,
 } from "../../test/helpers";
 
 // The person whose contacts and groups the tests work with
@@ -39,6 +40,53 @@ describe("groups table", () => {
 
   test("an empty name is not allowed", async () => {
     expect(await failureCode(insertGroup(owner, ""))).toBe(CHECK_VIOLATION);
+  });
+});
+
+describe("contacts table: birth date", () => {
+  const anna = (birth: Birth) =>
+    insertContact(owner, "Анна Смирнова", { birth });
+
+  test.each([
+    ["only a month, no day", { birthDay: null, birthMonth: 11 }],
+    ["only a day, no month", { birthDay: 21, birthMonth: null }],
+    [
+      "a year without a day and a month",
+      { birthDay: null, birthMonth: null, birthYear: 1990 },
+    ],
+    ["month 13", { birthDay: 1, birthMonth: 13 }],
+    ["month 0", { birthDay: 1, birthMonth: 0 }],
+    ["day 32", { birthDay: 32, birthMonth: 1 }],
+    ["day 0", { birthDay: 0, birthMonth: 1 }],
+    ["April 31", { birthDay: 31, birthMonth: 4 }],
+    ["February 30", { birthDay: 30, birthMonth: 2 }],
+    ["year 1850", { birthDay: 5, birthMonth: 3, birthYear: 1850 }],
+    ["year 2201", { birthDay: 5, birthMonth: 3, birthYear: 2201 }],
+  ] satisfies [string, Birth][])("%s is not allowed", async (_name, birth) => {
+    expect(await failureCode(anna(birth))).toBe(CHECK_VIOLATION);
+  });
+
+  test.each([
+    ["no date at all", { birthDay: null, birthMonth: null }],
+    ["a day and a month", { birthDay: 21, birthMonth: 11 }],
+    ["February 29, the year is not checked", { birthDay: 29, birthMonth: 2 }],
+    [
+      "a day, a month and a year",
+      { birthDay: 5, birthMonth: 3, birthYear: 1990 },
+    ],
+    ["the first year", { birthDay: 1, birthMonth: 1, birthYear: 1900 }],
+  ] satisfies [string, Birth][])("%s is allowed", async (_name, birth) => {
+    const id = await anna(birth);
+
+    const [saved] = await db
+      .select({
+        birthDay: contacts.birthDay,
+        birthMonth: contacts.birthMonth,
+        birthYear: contacts.birthYear,
+      })
+      .from(contacts)
+      .where(eq(contacts.id, id));
+    expect(saved).toEqual({ birthYear: null, ...birth });
   });
 });
 

@@ -7,6 +7,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -59,6 +60,12 @@ export const contacts = pgTable(
     email: text("email"),
     // Empty means "not set": such a contact is never due for a catch-up
     contactFrequency: contactFrequency("contact_frequency"),
+    // The birth date is three numbers, so that "no year" is an honest empty
+    // value and not an invented year. Day and month go together; the year
+    // only with them
+    birthDay: smallint("birth_day"),
+    birthMonth: smallint("birth_month"),
+    birthYear: smallint("birth_year"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -67,7 +74,25 @@ export const contacts = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [index("contacts_user_id_idx").on(table.userId)],
+  (table) => [
+    index("contacts_user_id_idx").on(table.userId),
+    // A second line of defence behind contactSchema in src/lib/validation.ts.
+    // The year is not compared with today and February 29 is not tied to a
+    // leap year: the database must not depend on the current or on a given
+    // year, the server checks that
+    check(
+      "contacts_birth_day_month_check",
+      sql`(${table.birthDay} is null) = (${table.birthMonth} is null)`,
+    ),
+    check(
+      "contacts_birth_year_check",
+      sql`${table.birthYear} is null or (${table.birthDay} is not null and ${table.birthYear} between 1900 and 2200)`,
+    ),
+    check(
+      "contacts_birth_date_check",
+      sql`${table.birthDay} is null or (${table.birthMonth} between 1 and 12 and ${table.birthDay} between 1 and (case when ${table.birthMonth} = 2 then 29 when ${table.birthMonth} in (4, 6, 9, 11) then 30 else 31 end))`,
+    ),
+  ],
 );
 
 export const notes = pgTable(

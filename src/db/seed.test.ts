@@ -6,6 +6,7 @@ import { describe, expect, test } from "vitest";
 import { db } from "@/db";
 import { contactGroups, contacts, groups, notes, users } from "@/db/schema";
 import { seedDemoData } from "@/db/seed-demo";
+import { listBirthdayContacts } from "@/lib/contacts";
 import { insertContact, insertUser } from "../../test/helpers";
 
 async function countsOf(userId: string) {
@@ -50,6 +51,18 @@ describe("seedDemoData", () => {
     expect(all.notes).toBeGreaterThan(0);
     expect(all.memberships).toBeGreaterThan(0);
     expect(await countsOf(friend)).toEqual({ contacts: 0, groups: 0 });
+  });
+
+  test("some contacts have a birthday soon, so the home page block has people", async () => {
+    await seedDemoData(db, "owner@mail.ru");
+    const [owner] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, "owner@mail.ru"));
+
+    const soon = await listBirthdayContacts(owner.id);
+
+    expect(soon.length).toBeGreaterThanOrEqual(5);
   });
 
   test("a second run adds nothing", async () => {

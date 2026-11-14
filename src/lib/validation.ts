@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { moscowToday } from "@/lib/birthday";
 import { CONTACT_FREQUENCIES } from "@/lib/contact-frequency";
 import { parseGroupId } from "@/lib/format";
 
@@ -12,7 +13,64 @@ const optionalText = (max: number) =>
     .max(max, tooLong(max))
     .transform((value) => value || null);
 
-export const contactSchema = z.object({
+// The birth date comes from the form as three strings, "" means "not set".
+// The form offers only real days and months, so a wrong value can come only
+// from a forged request. The database checks the same (src/db/schema.ts) but
+// knows neither the current year nor which years are leap ones.
+const BIRTH_YEAR_FIRST = 1900;
+const NEED_DAY_AND_MONTH = "Нужны и день, и месяц";
+const NO_SUCH_DATE = "Такой даты нет";
+const BAD_YEAR = "Год должен быть от 1900 до нынешнего";
+
+// February has 29 days here: whether the year is a leap one is checked below
+const MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
+
+// Only digits: "1.5", "-3", "1e1" and full-width digits are not numbers here
+function wholeNumber(text: string): number | null {
+  return /^\d{1,4}$/.test(text) ? Number(text) : null;
+}
+
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+type BirthInput = { birthDay: string; birthMonth: string; birthYear: string };
+
+type ParsedBirth =
+  | { ok: true; day: number | null; month: number | null; year: number | null }
+  | { ok: false; message: string };
+
+function parseBirth(input: BirthInput): ParsedBirth {
+  const dayText = input.birthDay.trim();
+  const monthText = input.birthMonth.trim();
+  const yearText = input.birthYear.trim();
+  if (!dayText && !monthText && !yearText) {
+    return { ok: true, day: null, month: null, year: null };
+  }
+  if (!dayText || !monthText) return { ok: false, message: NEED_DAY_AND_MONTH };
+
+  const day = wholeNumber(dayText);
+  const month = wholeNumber(monthText);
+  if (!day || !month || month > 12 || day > MONTH_DAYS[month - 1]) {
+    return { ok: false, message: NO_SUCH_DATE };
+  }
+  if (!yearText) return { ok: true, day, month, year: null };
+
+  const year = wholeNumber(yearText);
+  if (
+    year === null ||
+    year < BIRTH_YEAR_FIRST ||
+    year > moscowToday(new Date()).year
+  ) {
+    return { ok: false, message: BAD_YEAR };
+  }
+  if (month === 2 && day === 29 && !isLeapYear(year)) {
+    return { ok: false, message: NO_SUCH_DATE };
+  }
+  return { ok: true, day, month, year };
+}
+
+const contactFieldsSchema = z.object({
   name: z.string().trim().min(1, "Укажите имя").max(200, tooLong(200)),
   about: optionalText(500),
   howWeMet: optionalText(500),
@@ -40,7 +98,36 @@ export const contactSchema = z.object({
       error: "Выберите вариант из списка",
     })
     .transform((value) => value || null),
+  birthDay: z.string(),
+  birthMonth: z.string(),
+  birthYear: z.string(),
 });
+
+// All the date's mistakes go to one place, under the "День" field, and show
+// as one line under the whole group of the date's fields. The check is
+// separate from the transform so that it runs next to the other fields'
+// checks: a wrong email does not hide a wrong date.
+export const contactSchema = contactFieldsSchema
+  .superRefine((data, ctx) => {
+    const birth = parseBirth(data);
+    if (!birth.ok) {
+      ctx.addIssue({
+        code: "custom",
+        message: birth.message,
+        path: ["birthDay"],
+      });
+    }
+  })
+  .transform(({ birthDay, birthMonth, birthYear, ...rest }) => {
+    // Cannot fail here: a wrong date has already failed the check above
+    const birth = parseBirth({ birthDay, birthMonth, birthYear });
+    return {
+      ...rest,
+      birthDay: birth.ok ? birth.day : null,
+      birthMonth: birth.ok ? birth.month : null,
+      birthYear: birth.ok ? birth.year : null,
+    };
+  });
 
 export type ContactField = keyof z.input<typeof contactSchema>;
 
@@ -51,6 +138,9 @@ export const CONTACT_FIELDS = [
   "phone",
   "email",
   "contactFrequency",
+  "birthDay",
+  "birthMonth",
+  "birthYear",
 ] as const satisfies readonly ContactField[];
 
 export type ContactFormValues = Record<ContactField, string>;
@@ -76,6 +166,9 @@ export const emptyContactValues: ContactFormValues = {
   phone: "",
   email: "",
   contactFrequency: "",
+  birthDay: "",
+  birthMonth: "",
+  birthYear: "",
 };
 
 export const noteSchema = z.object({

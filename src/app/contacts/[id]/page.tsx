@@ -11,6 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatBirthDate } from "@/lib/birthday";
 import { CONTACT_FREQUENCY_LABELS } from "@/lib/contact-frequency";
 import { listContactGroups } from "@/lib/groups";
 import { getContact, listNotes } from "@/lib/contacts";
@@ -121,6 +122,15 @@ async function ContactDetails({ rawId }: { rawId: string }) {
             <DetailRow label="Как часто общаться">
               {contact.contactFrequency &&
                 CONTACT_FREQUENCY_LABELS[contact.contactFrequency]}
+            </DetailRow>
+            <DetailRow label="Дата рождения">
+              {contact.birthDay !== null && contact.birthMonth !== null
+                ? formatBirthDate({
+                    day: contact.birthDay,
+                    month: contact.birthMonth,
+                    year: contact.birthYear,
+                  })
+                : null}
             </DetailRow>
             <DetailRow label="Группы">
               {groups.length > 0 && (
