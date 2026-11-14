@@ -23,9 +23,12 @@ if [ "${INPUT_ROLLBACK:-false}" = true ]; then
     exit 0
 fi
 
-# Newest first
-green=$(gh run list --repo "${GITHUB_REPOSITORY:?}" --workflow deploy.yml --branch main --status success \
-    --limit 100 --json headSha --jq '.[].headSha')
+# Newest first. Green runs are picked here, not with `gh run list --status success`: that filter
+# is applied by GitHub, and it left out a finished green run for over half an hour, so the script
+# quietly chose an older commit and prod got an old version.
+green=$(gh run list --repo "${GITHUB_REPOSITORY:?}" --workflow deploy.yml --branch main \
+    --limit 100 --json headSha,conclusion \
+    --jq '.[] | select(.conclusion == "success") | .headSha')
 [ -n "$green" ] || fail "no green deploy to the test stand in the last 100 runs of Deploy staging: nothing to deploy"
 
 if [ -z "${INPUT_SHA:-}" ]; then
